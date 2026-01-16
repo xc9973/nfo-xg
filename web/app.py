@@ -950,6 +950,67 @@ async def get_recent(auth: bool = Depends(check_auth)):
     return recent
 
 
+# ========== 预览 API ==========
+
+@app.post("/api/preview")
+async def preview_nfo_files(req: PreviewRequest, auth: bool = Depends(check_auth)):
+    """批量获取 NFO 文件的预览数据（轻量级）
+
+    只返回核心字段，减少数据传输量。支持批量预览多个文件。
+
+    Args:
+        req: 预览请求，包含文件路径列表
+
+    Returns:
+        预览结果列表，每个文件包含 success 状态和 preview 数据或 error 信息
+    """
+    results = []
+
+    for path_str in req.paths:
+        try:
+            # 使用现有的 parser 解析文件
+            data = parser.parse(path_str)
+
+            # 创建轻量级预览数据，只返回核心字段
+            preview_data = PreviewData(
+                title=data.title,
+                originaltitle=data.originaltitle,
+                year=data.year,
+                rating=data.rating,
+                type=data.nfo_type.value,
+                genres=data.genres[:3] if data.genres else [],  # 最多3个类型
+                runtime=data.runtime,
+                poster=data.poster
+            )
+
+            results.append(PreviewResultItem(
+                path=path_str,
+                success=True,
+                preview=preview_data
+            ))
+
+        except FileError as e:
+            results.append(PreviewResultItem(
+                path=path_str,
+                success=False,
+                error=str(e)
+            ))
+        except ParseError as e:
+            results.append(PreviewResultItem(
+                path=path_str,
+                success=False,
+                error=f"解析错误: {str(e)}"
+            ))
+        except Exception as e:
+            results.append(PreviewResultItem(
+                path=path_str,
+                success=False,
+                error=f"未知错误: {str(e)}"
+            ))
+
+    return PreviewResponse(results=results)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8111)
