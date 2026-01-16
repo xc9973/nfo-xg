@@ -1114,3 +1114,42 @@ textarea {
     font-size: 13px;
     min-height: 20px;
 }
+
+/* 历史标签页 */
+.history-tabs {
+    display: flex;
+    border-bottom: 1px solid #0f3460;
+}
+
+.history-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 10px;
+    color: #aaa;
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.history-tab.active {
+    color: #e94560;
+    border-bottom-color: #e94560;
+}
+
+.history-tab:hover {
+    color: #eee;
+}
+
+/* 批量结果指示 */
+.batch-result-success {
+    color: #27ae60;
+    font-size: 11px;
+    margin-left: 8px;
+}
+
+.batch-result-fail {
+    color: #e74c3c;
+    font-size: 11px;
+    margin-left: 4px;
+}

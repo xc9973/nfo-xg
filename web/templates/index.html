@@ -70,7 +70,12 @@
                     <h4>操作历史</h4>
                     <button class="btn-icon-small" onclick="toggleHistory()">×</button>
                 </div>
+                <div class="history-tabs">
+                    <button class="history-tab active" onclick="showHistoryTab('single')">单个操作</button>
+                    <button class="history-tab" onclick="showHistoryTab('batch')">批量操作</button>
+                </div>
                 <div id="historyList" class="history-list"></div>
+                <div id="batchHistoryList" class="history-list" style="display:none"></div>
             </div>
 
             <div id="editorContent">
@@ -111,6 +116,54 @@
 
         // 操作历史记录
         let actionHistory = [];
+
+        // 批量操作历史
+        let batchHistory = [];
+
+        function addBatchHistory(action, successCount, failCount) {
+            const timestamp = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+            batchHistory.unshift({
+                action,
+                successCount,
+                failCount,
+                timestamp
+            });
+
+            if (batchHistory.length > 20) {
+                batchHistory = batchHistory.slice(0, 20);
+            }
+
+            renderBatchHistory();
+        }
+
+        function renderBatchHistory() {
+            const list = document.getElementById('batchHistoryList');
+
+            if (batchHistory.length === 0) {
+                list.innerHTML = '<div style="color:#666;font-size:12px;padding:10px;text-align:center">暂无批量操作</div>';
+                return;
+            }
+
+            list.innerHTML = batchHistory.map(item => `
+                <div class="history-item batch">
+                    <div>
+                        <strong>${item.action}</strong>
+                        <span class="batch-result-success">✓ ${item.successCount}</span>
+                        ${item.failCount > 0 ? `<span class="batch-result-fail">✕ ${item.failCount}</span>` : ''}
+                    </div>
+                    <span class="history-time">${item.timestamp}</span>
+                </div>
+            `).join('');
+        }
+
+        function showHistoryTab(tab) {
+            const tabs = document.querySelectorAll('.history-tab');
+            tabs.forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('historyList').style.display = tab === 'single' ? 'block' : 'none';
+            document.getElementById('batchHistoryList').style.display = tab === 'batch' ? 'block' : 'none';
+        }
 
         // 批量操作状态
         let batchMode = false;
@@ -734,8 +787,8 @@
             batchTMDBState.active = false;
             showBatchComplete();
 
-            // 记录历史
-            addHistory(`批量获取 TMDB: ${batchTMDBState.completed}/${batchTMDBState.total} 成功`, 'batch');
+            // 记录批量历史
+            addBatchHistory('批量 TMDB 获取', batchTMDBState.completed, batchTMDBState.failed);
 
             // 退出多选模式
             exitBatchMode();
@@ -820,8 +873,8 @@
             batchTMDBState.active = false;
             showBatchComplete();
 
-            // 记录历史
-            addHistory(`批量更新 ${field}: ${batchTMDBState.completed}/${batchTMDBState.total} 成功`, 'batch');
+            // 记录批量历史
+            addBatchHistory(`批量更新 ${field}`, batchTMDBState.completed, batchTMDBState.failed);
 
             exitBatchMode();
         }
