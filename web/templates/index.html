@@ -375,15 +375,10 @@
                 // 移动端：加载后切换到编辑面板
                 if (window.innerWidth <= 768) {
                     setTimeout(() => {
-                        const fileBrowser = document.querySelector('.file-browser');
-                        const editor = document.querySelector('.editor');
                         const navItems = document.querySelectorAll('.nav-item');
-
-                        fileBrowser.style.display = 'none';
-                        editor.style.display = 'block';
-
-                        navItems.forEach(item => item.classList.remove('active'));
-                        navItems[1]?.classList.add('active'); // 编辑按钮
+                        if (navItems.length > 1) {
+                            showMobilePanel('editor', navItems[1]);
+                        }
                     }, 100);
                 }
 
@@ -709,14 +704,16 @@
         }
 
         // 移动端面板管理
-        function showMobilePanel(panel) {
+        function showMobilePanel(panel, element) {
             const fileBrowser = document.querySelector('.file-browser');
             const editor = document.querySelector('.editor');
             const navItems = document.querySelectorAll('.nav-item');
 
             // 更新导航状态
             navItems.forEach(item => item.classList.remove('active'));
-            event.target.closest('.nav-item').classList.add('active');
+            if (element) {
+                element.classList.add('active');
+            }
 
             // 切换面板
             switch(panel) {
@@ -731,7 +728,7 @@
                 case 'search':
                     document.getElementById('searchInput').focus();
                     if (window.innerWidth <= 768) {
-                        showMobilePanel('files'); // 搜索在文件面板中
+                        showMobilePanel('files', element); // 搜索在文件面板中
                     }
                     break;
             }
@@ -1200,18 +1197,18 @@
         }
 
         // 模态框滑动关闭
-        let touchStartY = 0;
+        let modalTouchStartY = 0;
         let modalContent = null;
 
         function handleTouchStart(e) {
-            touchStartY = e.touches[0].clientY;
+            modalTouchStartY = e.touches[0].clientY;
         }
 
         function handleTouchMove(e) {
             if (!modalContent) return;
 
             const touchY = e.touches[0].clientY;
-            const diff = touchY - touchStartY;
+            const diff = touchY - modalTouchStartY;
 
             if (diff > 0) {
                 modalContent.style.transform = `translateY(${diff}px)`;
@@ -1222,7 +1219,7 @@
             if (!modalContent) return;
 
             const touchY = e.changedTouches[0].clientY;
-            const diff = touchY - touchStartY;
+            const diff = touchY - modalTouchStartY;
 
             if (diff > 100) {
                 closeTMDBModal();
@@ -1733,15 +1730,15 @@
 
     <!-- 移动端底部导航 -->
     <nav class="mobile-nav" style="display:none">
-        <button class="nav-item active" onclick="showMobilePanel('files')">
+        <button class="nav-item active" onclick="showMobilePanel('files', this)">
             <span class="nav-icon">📁</span>
             <span class="nav-label">文件</span>
         </button>
-        <button class="nav-item" onclick="showMobilePanel('editor')">
+        <button class="nav-item" onclick="showMobilePanel('editor', this)">
             <span class="nav-icon">✏️</span>
             <span class="nav-label">编辑</span>
         </button>
-        <button class="nav-item" onclick="showMobilePanel('search')">
+        <button class="nav-item" onclick="showMobilePanel('search', this)">
             <span class="nav-icon">🔍</span>
             <span class="nav-label">搜索</span>
         </button>
