@@ -1733,6 +1733,152 @@
             }
         }
 
+        // ========== 悬停预览功能 ==========
+
+        class HoverPreview {
+            constructor(searchResultItem) {
+                this.item = searchResultItem;
+                this.tooltip = null;
+                this.showTimer = null;
+                this.path = this.item.dataset.path;
+                this.init();
+            }
+
+            init() {
+                // 移动端禁用悬停预览
+                if (window.innerWidth <= 768) return;
+
+                this.item.addEventListener('mouseenter', () => this.scheduleShow());
+                this.item.addEventListener('mouseleave', () => this.hide());
+                this.item.addEventListener('mousemove', (e) => this.position(e));
+            }
+
+            scheduleShow() {
+                // 清除之前的定时器
+                if (this.showTimer) {
+                    clearTimeout(this.showTimer);
+                }
+
+                // 300ms 延迟
+                this.showTimer = setTimeout(() => this.show(), 300);
+            }
+
+            async show() {
+                if (!this.path) return;
+
+                try {
+                    // 从缓存或 API 获取预览数据
+                    const data = await this.fetchPreviewData();
+                    this.renderTooltip(data);
+                } catch (error) {
+                    console.error('Failed to load preview:', error);
+                }
+            }
+
+            async fetchPreviewData() {
+                const cached = previewCache.get(this.path);
+                if (cached) return cached;
+
+                const res = await fetch('/api/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paths: [this.path] })
+                });
+
+                if (!res.ok) throw new Error('Preview fetch failed');
+
+                const data = await res.json();
+                const result = data.results[0];
+
+                if (result.success) {
+                    previewCache.set(this.path, result.preview);
+                    return result.preview;
+                }
+
+                throw new Error(result.error);
+            }
+
+            renderTooltip(data) {
+                // 如果已存在，先移除
+                if (this.tooltip) {
+                    this.tooltip.remove();
+                }
+
+                // 创建 tooltip 元素
+                this.tooltip = document.createElement('div');
+                this.tooltip.className = 'preview-tooltip';
+
+                const genresHtml = data.genres
+                    ? data.genres.map(g => `<span class="preview-tooltip-genre-tag">${esc(g)}</span>`).join('')
+                    : '';
+
+                const ratingHtml = data.rating
+                    ? `<span class="preview-tooltip-rating">⭐ ${data.rating}</span>`
+                    : '';
+
+                this.tooltip.innerHTML = `
+                    <div class="preview-tooltip-header">
+                        <span class="preview-tooltip-title">${esc(data.title || '无标题')}</span>
+                    </div>
+                    <div class="preview-tooltip-meta">
+                        <span>${data.year || '未知年份'}</span>
+                        ${ratingHtml}
+                    </div>
+                    ${genresHtml ? `<div class="preview-tooltip-genres">${genresHtml}</div>` : ''}
+                `;
+
+                document.body.appendChild(this.tooltip);
+                this.position();
+            }
+
+            position(event) {
+                if (!this.tooltip) return;
+
+                const rect = this.item.getBoundingClientRect();
+
+                // 默认显示在结果项右侧
+                let top = rect.top + window.scrollY;
+                let left = rect.right + 10;
+
+                // 如果传入了鼠标事件，使用鼠标位置
+                if (event) {
+                    top = event.clientY + window.scrollY + 10;
+                    left = event.clientX + window.scrollX + 15;
+                }
+
+                // 边界检测：防止超出视口
+                const tooltipRect = this.tooltip.getBoundingClientRect();
+                if (left + tooltipRect.width > window.innerWidth) {
+                    left = rect.left - tooltipRect.width - 10;
+                }
+                if (top + tooltipRect.height > window.innerHeight + window.scrollY) {
+                    top = window.innerHeight + window.scrollY - tooltipRect.height - 10;
+                }
+
+                this.tooltip.style.top = top + 'px';
+                this.tooltip.style.left = left + 'px';
+            }
+
+            hide() {
+                if (this.showTimer) {
+                    clearTimeout(this.showTimer);
+                    this.showTimer = null;
+                }
+
+                if (this.tooltip) {
+                    this.tooltip.remove();
+                    this.tooltip = null;
+                }
+            }
+
+            destroy() {
+                this.hide();
+                this.item.removeEventListener('mouseenter', this.scheduleShow);
+                this.item.removeEventListener('mouseleave', this.hide);
+                this.item.removeEventListener('mousemove', this.position);
+            }
+        }
+
         function renderSearchResults(results, truncated) {
             const container = document.getElementById('searchResults');
             const fileList = document.getElementById('fileList');
@@ -1761,9 +1907,9 @@
             for (const item of results) {
                 const isSelected = selectedSearchResult === item.path ? 'selected' : '';
                 const matchTypeLabel = getMatchTypeLabel(item.match_type);
-                
+
                 html += `
-                    <div class="search-result-item ${isSelected}" onclick="selectSearchResult('${esc(item.path)}')">
+                    <div class="search-result-item ${isSelected}" data-path="${esc(item.path)}" onclick="selectSearchResult('${esc(item.path)}')">
                         <div class="search-result-filename">📄 ${esc(item.filename)}</div>
                         <div class="search-result-path">${esc(item.path)}</div>
                         <span class="search-result-match">${matchTypeLabel}</span>
@@ -1771,8 +1917,13 @@
                     </div>
                 `;
             }
-            
+
             container.innerHTML = html;
+
+            // 初始化悬停预览
+            document.querySelectorAll('.search-result-item').forEach(item => {
+                new HoverPreview(item);
+            });
         }
 
         function getMatchTypeLabel(matchType) {
