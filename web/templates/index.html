@@ -71,8 +71,8 @@
                     <button class="btn-icon-small" onclick="toggleHistory()">×</button>
                 </div>
                 <div class="history-tabs">
-                    <button class="history-tab active" onclick="showHistoryTab('single')">单个操作</button>
-                    <button class="history-tab" onclick="showHistoryTab('batch')">批量操作</button>
+                    <button class="history-tab active" onclick="showHistoryTab('single', this)">单个操作</button>
+                    <button class="history-tab" onclick="showHistoryTab('batch', this)">批量操作</button>
                 </div>
                 <div id="historyList" class="history-list"></div>
                 <div id="batchHistoryList" class="history-list" style="display:none"></div>
@@ -156,10 +156,10 @@
             `).join('');
         }
 
-        function showHistoryTab(tab) {
+        function showHistoryTab(tab, element) {
             const tabs = document.querySelectorAll('.history-tab');
             tabs.forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
+            element.classList.add('active');
 
             document.getElementById('historyList').style.display = tab === 'single' ? 'block' : 'none';
             document.getElementById('batchHistoryList').style.display = tab === 'batch' ? 'block' : 'none';
@@ -226,8 +226,6 @@
             document.getElementById('selectedCount').textContent = selectedFiles.size;
         }
 
-        let actionHistory = [];
-
         function addHistory(action, type) {
             const timestamp = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
             actionHistory.unshift({action, type, timestamp});
@@ -289,18 +287,21 @@
             let html = '';
 
             if (data.parent) {
-                html += `<div class="file-item dir" onclick="loadDir('${data.parent}')">📁 ..</div>`;
+                const escapedParent = data.parent.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                html += `<div class="file-item dir" onclick="loadDir('${escapedParent}')">📁 ..</div>`;
             }
 
             for (const item of data.items) {
                 if (item.is_dir) {
-                    html += `<div class="file-item dir" onclick="loadDir('${item.path}')">📁 ${item.name}</div>`;
+                    const escapedPath = item.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    html += `<div class="file-item dir" onclick="loadDir('${escapedPath}')">📁 ${esc(item.name)}</div>`;
                 } else if (item.is_nfo) {
                     const checkboxId = `select-${item.path.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    const escapedPath = item.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                     html += `
-                        <div class="file-item nfo ${batchMode ? 'selectable' : ''}" data-path="${item.path}">
-                            ${batchMode ? `<input type="checkbox" id="${checkboxId}" class="file-checkbox" onchange="toggleFileSelection('${item.path}')">` : ''}
-                            <label for="${checkboxId}" class="file-item-content" onclick="${batchMode ? '' : `loadNfo('${item.path}')`}">
+                        <div class="file-item nfo ${batchMode ? 'selectable' : ''}" data-path="${escapedPath}">
+                            ${batchMode ? `<input type="checkbox" id="${checkboxId}" class="file-checkbox" onchange="toggleFileSelection('${escapedPath}')">` : ''}
+                            <label for="${checkboxId}" class="file-item-content" onclick="${batchMode ? '' : `loadNfo('${escapedPath}')`}">
                                 📄 ${esc(item.name)}
                             </label>
                         </div>
@@ -938,8 +939,8 @@
             const list = document.getElementById('batchErrorList');
             list.innerHTML = failedResults.map(item => `
                 <div class="batch-error-item">
-                    <div class="batch-error-file">📄 ${item.file.split('/').pop()}</div>
-                    <div class="batch-error-reason">${item.error}</div>
+                    <div class="batch-error-file">📄 ${esc(item.file.split('/').pop())}</div>
+                    <div class="batch-error-reason">${esc(item.error)}</div>
                 </div>
             `).join('');
 
