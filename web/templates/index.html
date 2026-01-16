@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NFO 编辑器</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -23,6 +23,12 @@
             </div>
             <div class="search-results" id="searchResults" style="display:none"></div>
             <div class="file-list" id="fileList"></div>
+
+            <!-- 移动端操作按钮 -->
+            <div class="mobile-actions" style="display:none">
+                <button class="btn btn-secondary" onclick="showTemplateModal()" style="flex:1">📋 模板</button>
+            </div>
+
             <div class="template-section">
                 <h4>📋 模板</h4>
                 <div id="templateList"></div>
@@ -187,6 +193,21 @@
 
                 // 记录历史
                 addHistory(`加载: ${path.split('/').pop()}`, 'load');
+
+                // 移动端：加载后切换到编辑面板
+                if (window.innerWidth <= 768) {
+                    setTimeout(() => {
+                        const fileBrowser = document.querySelector('.file-browser');
+                        const editor = document.querySelector('.editor');
+                        const navItems = document.querySelectorAll('.nav-item');
+
+                        fileBrowser.style.display = 'none';
+                        editor.style.display = 'block';
+
+                        navItems.forEach(item => item.classList.remove('active'));
+                        navItems[1]?.classList.add('active'); // 编辑按钮
+                    }, 100);
+                }
 
             } catch (e) {
                 showToast(e.message, 'error');
@@ -465,9 +486,140 @@
             });
         }
 
+        // 移动端面板管理
+        function showMobilePanel(panel) {
+            const fileBrowser = document.querySelector('.file-browser');
+            const editor = document.querySelector('.editor');
+            const navItems = document.querySelectorAll('.nav-item');
+
+            // 更新导航状态
+            navItems.forEach(item => item.classList.remove('active'));
+            event.target.closest('.nav-item').classList.add('active');
+
+            // 切换面板
+            switch(panel) {
+                case 'files':
+                    fileBrowser.style.display = 'flex';
+                    editor.style.display = 'none';
+                    break;
+                case 'editor':
+                    fileBrowser.style.display = 'none';
+                    editor.style.display = 'block';
+                    break;
+                case 'search':
+                    document.getElementById('searchInput').focus();
+                    if (window.innerWidth <= 768) {
+                        showMobilePanel('files'); // 搜索在文件面板中
+                    }
+                    break;
+            }
+        }
+
         // Init
         loadDir('');
         loadTemplates();
+
+        // 处理虚拟键盘弹出
+        let originalHeight = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            const currentHeight = window.innerHeight;
+            const keyboardHeight = originalHeight - currentHeight;
+
+            // 如果键盘弹出（高度减少超过 150px）
+            if (keyboardHeight > 150) {
+                document.body.classList.add('keyboard-open');
+
+                // 滚动到聚焦元素
+                const activeElement = document.activeElement;
+                if (activeElement) {
+                    activeElement.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+            } else {
+                document.body.classList.remove('keyboard-open');
+            }
+        });
+
+        // 保存原始高度
+        window.addEventListener('load', () => {
+            originalHeight = window.innerHeight;
+        });
+
+        // 移动端滑动手势
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, {passive: true});
+
+        document.addEventListener('touchend', (e) => {
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+
+            const diffX = touchEndX - touchStartX;
+            const diffY = touchEndY - touchStartY;
+
+            // 水平滑动超过 100px 且垂直滑动小于 50px
+            if (Math.abs(diffX) > 100 && Math.abs(diffY) < 50) {
+                if (diffX > 0) {
+                    // 右滑：返回文件面板
+                    const editor = document.querySelector('.editor');
+                    if (editor.style.display !== 'none' && window.innerWidth <= 768) {
+                        const fileBrowser = document.querySelector('.file-browser');
+                        const navItems = document.querySelectorAll('.nav-item');
+
+                        fileBrowser.style.display = 'flex';
+                        editor.style.display = 'none';
+
+                        navItems.forEach(item => item.classList.remove('active'));
+                        navItems[0]?.classList.add('active'); // 文件按钮
+                    }
+                }
+            }
+        }, {passive: true});
+
+        // 下拉刷新
+        let pullStartY = 0;
+        let isPulling = false;
+        const pullThreshold = 80;
+
+        document.querySelector('.file-browser').addEventListener('touchstart', (e) => {
+            const fileList = document.getElementById('fileList');
+            if (fileList.scrollTop === 0) {
+                pullStartY = e.touches[0].clientY;
+                isPulling = true;
+            }
+        }, {passive: true});
+
+        document.querySelector('.file-browser').addEventListener('touchmove', (e) => {
+            if (!isPulling) return;
+
+            const currentY = e.touches[0].clientY;
+            const diff = currentY - pullStartY;
+
+            if (diff > 0 && diff < pullThreshold * 2) {
+                e.preventDefault();
+                // 可以添加视觉反馈
+            }
+        }, {passive: false});
+
+        document.querySelector('.file-browser').addEventListener('touchend', (e) => {
+            if (!isPulling) return;
+
+            const endY = e.changedTouches[0].clientY;
+            const diff = endY - pullStartY;
+
+            if (diff > pullThreshold) {
+                // 刷新当前目录
+                const currentPath = document.getElementById('currentPath').textContent;
+                loadDir(currentPath === '~' ? '' : currentPath);
+                showToast('已刷新', 'info');
+            }
+
+            isPulling = false;
+        }, {passive: true});
 
         // 键盘事件
         document.addEventListener('keydown', (e) => {
@@ -516,6 +668,64 @@
                 closeTMDBModal();
             }
         }
+
+        // 模态框滑动关闭
+        let touchStartY = 0;
+        let modalContent = null;
+
+        function handleTouchStart(e) {
+            touchStartY = e.touches[0].clientY;
+        }
+
+        function handleTouchMove(e) {
+            if (!modalContent) return;
+
+            const touchY = e.touches[0].clientY;
+            const diff = touchY - touchStartY;
+
+            if (diff > 0) {
+                modalContent.style.transform = `translateY(${diff}px)`;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (!modalContent) return;
+
+            const touchY = e.changedTouches[0].clientY;
+            const diff = touchY - touchStartY;
+
+            if (diff > 100) {
+                closeTMDBModal();
+            }
+
+            modalContent.style.transform = '';
+        }
+
+        // 在打开模态框时添加触摸监听
+        const originalOpenTMDBSearch = openTMDBSearch;
+        openTMDBSearch = function() {
+            originalOpenTMDBSearch();
+            modalContent = document.querySelector('.modal-content');
+
+            if (modalContent) {
+                modalContent.addEventListener('touchstart', handleTouchStart);
+                modalContent.addEventListener('touchmove', handleTouchMove);
+                modalContent.addEventListener('touchend', handleTouchEnd);
+            }
+        };
+
+        // 在关闭模态框时移除监听
+        const originalCloseTMDBModal = closeTMDBModal;
+        closeTMDBModal = function() {
+            originalCloseTMDBModal();
+
+            if (modalContent) {
+                modalContent.removeEventListener('touchstart', handleTouchStart);
+                modalContent.removeEventListener('touchmove', handleTouchMove);
+                modalContent.removeEventListener('touchend', handleTouchEnd);
+                modalContent = null;
+            }
+        };
 
         // 执行 TMDB 搜索请求
         async function searchTMDB() {
@@ -948,6 +1158,22 @@
             </div>
         </div>
     </div>
+
+    <!-- 移动端底部导航 -->
+    <nav class="mobile-nav" style="display:none">
+        <button class="nav-item active" onclick="showMobilePanel('files')">
+            <span class="nav-icon">📁</span>
+            <span class="nav-label">文件</span>
+        </button>
+        <button class="nav-item" onclick="showMobilePanel('editor')">
+            <span class="nav-icon">✏️</span>
+            <span class="nav-label">编辑</span>
+        </button>
+        <button class="nav-item" onclick="showMobilePanel('search')">
+            <span class="nav-icon">🔍</span>
+            <span class="nav-label">搜索</span>
+        </button>
+    </nav>
 
     <!-- Toast 容器 -->
     <div id="toastContainer" class="toast-container"></div>

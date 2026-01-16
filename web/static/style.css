@@ -402,18 +402,178 @@ textarea {
     font-size: 11px;
 }
 
+/* 移动端导航 */
+.mobile-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #16213e;
+    border-top: 1px solid #0f3460;
+    display: flex;
+    justify-content: space-around;
+    padding: 8px 0;
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-item {
+    background: none;
+    border: none;
+    color: #666;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 8px 16px;
+    min-width: 60px;
+}
+
+.nav-item.active {
+    color: #e94560;
+}
+
+.nav-icon {
+    font-size: 20px;
+}
+
+.nav-label {
+    font-size: 11px;
+}
+
 /* Responsive */
+
+/* 平板端 */
+@media (max-width: 1024px) {
+    .container {
+        grid-template-columns: 250px 1fr;
+    }
+
+    .file-browser {
+        font-size: 13px;
+    }
+}
+
+/* 移动端 */
 @media (max-width: 768px) {
     .container {
         grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
     }
+
     .file-browser {
-        max-height: 40vh;
+        max-height: 35vh;
+        border-right: none;
+        border-bottom: 1px solid #0f3460;
+    }
+
+    .file-browser h3 {
+        font-size: 13px;
+        padding: 10px;
+    }
+
+    .path-bar {
+        font-size: 11px;
+        padding: 8px;
+    }
+
+    .file-item {
+        padding: 12px 10px;
+        font-size: 14px;
+    }
+
+    .template-section {
+        display: none;
+    }
+
+    .mobile-actions {
+        display: flex;
+        gap: 10px;
+        padding: 10px;
+        border-top: 1px solid #0f3460;
+    }
+
+    /* 触摸目标优化 */
+    .btn {
+        padding: 12px 18px;
+        font-size: 14px;
+        min-height: 44px;
+    }
+
+    .btn-icon {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 12px;
+    }
+
+    .search-btn, .clear-btn {
+        min-width: 44px;
+        padding: 12px;
+    }
+
+    input, select, textarea {
+        padding: 12px 14px;
+        font-size: 16px;
+        min-height: 44px;
+    }
+
+    textarea {
+        min-height: 120px;
+    }
+
+    .list-item {
+        padding: 8px 12px;
+        font-size: 14px;
+        min-height: 40px;
+    }
+
+    .actor-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .actor-item input {
+        min-height: 44px;
+    }
+
+    /* 模态框移动端优化 */
+    .modal {
+        padding: 10px;
     }
 
     .modal-content {
-        width: 95%;
+        width: 100%;
+        max-width: 100%;
         max-height: 90vh;
+        border-radius: 8px 8px 0 0;
+        margin-top: auto;
+    }
+
+    .modal-header {
+        padding: 12px 15px;
+    }
+
+    .modal-header h3 {
+        font-size: 16px;
+    }
+
+    .modal-body {
+        padding: 15px;
+    }
+
+    .tmdb-search-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .tmdb-search-bar input {
+        width: 100%;
+    }
+
+    .tmdb-search-bar button {
+        width: 100%;
     }
 
     .tmdb-results-grid {
@@ -424,8 +584,64 @@ textarea {
     .tmdb-title {
         font-size: 12px;
     }
+
+    input:focus, select:focus, textarea:focus {
+        position: relative;
+        z-index: 10;
+    }
+
+    /* 移动端导航显示 */
+    .mobile-nav {
+        display: flex !important;
+    }
+
+    .container {
+        padding-bottom: 60px;
+    }
+
+    /* 键盘打开时隐藏导航 */
+    body.keyboard-open .mobile-nav {
+        display: none !important;
+    }
+
+    body.keyboard-open .container {
+        padding-bottom: 0;
+    }
 }
 
+/* 小屏手机 */
+@media (max-width: 480px) {
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .tmdb-results-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .tmdb-poster {
+        aspect-ratio: 2/3;
+    }
+
+    .tmdb-info {
+        padding: 6px;
+    }
+
+    .tmdb-type {
+        font-size: 9px;
+        padding: 1px 4px;
+    }
+
+    .tmdb-title {
+        font-size: 11px;
+    }
+}
 
 /* Template Section */
 .template-section {
