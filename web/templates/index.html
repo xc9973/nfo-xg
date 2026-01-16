@@ -918,9 +918,37 @@
                 if (failed === 0) {
                     showToast(`全部完成！成功 ${completed} 个文件`, 'success');
                 } else {
-                    showToast(`完成 ${completed} 个，失败 ${failed} 个`, 'warning');
+                    // 有失败时提示查看错误详情
+                    if (confirm(`完成 ${completed} 个，失败 ${failed} 个\n\n点击"确定"查看错误详情`)) {
+                        showBatchErrors();
+                    }
                 }
             }, 1000);
+        }
+
+        // 显示批量错误详情
+        function showBatchErrors() {
+            const failedResults = batchTMDBState.results.filter(r => !r.success);
+
+            if (failedResults.length === 0) {
+                showToast('没有失败的文件', 'info');
+                return;
+            }
+
+            const list = document.getElementById('batchErrorList');
+            list.innerHTML = failedResults.map(item => `
+                <div class="batch-error-item">
+                    <div class="batch-error-file">📄 ${item.file.split('/').pop()}</div>
+                    <div class="batch-error-reason">${item.error}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('batchErrorModal').classList.add('active');
+        }
+
+        // 关闭批量错误详情
+        function closeBatchErrorModal() {
+            document.getElementById('batchErrorModal').classList.remove('active');
         }
 
         // 处理虚拟键盘弹出
@@ -1588,6 +1616,19 @@
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
                 <div class="batch-current-file" id="currentFile"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量操作错误详情模态框 -->
+    <div id="batchErrorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>❌ 批量操作错误详情</h3>
+                <button class="modal-close" onclick="closeBatchErrorModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="batchErrorList" class="batch-error-list"></div>
             </div>
         </div>
     </div>
