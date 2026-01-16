@@ -11,7 +11,7 @@ COPY nfo_editor/ ./nfo_editor/
 COPY web/ ./web/
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8111
 
 # Run
-CMD ["python", "web/app.py"]
+CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8111"]

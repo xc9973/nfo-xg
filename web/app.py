@@ -754,4 +754,4 @@ async def tmdb_config(req: TmdbConfigRequest, auth: bool = Depends(check_auth)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=1111)
+    uvicorn.run(app, host="0.0.0.0", port=8111)
