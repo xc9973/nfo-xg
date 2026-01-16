@@ -3,6 +3,7 @@ import os
 import sys
 import secrets
 import uuid
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -41,6 +42,78 @@ from nfo_editor.services.tmdb_mapper import TMDBMapper
 
 app = FastAPI(title="NFO Editor", version="1.0.0")
 
+# 配置文件路径
+CONFIG_DIR = Path.home() / ".nfo-xg"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+RECENT_FILE = CONFIG_DIR / "recent.json"
+
+# 确保配置目录存在
+CONFIG_DIR.mkdir(exist_ok=True)
+
+
+def load_config():
+    """加载配置"""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"tmdb_api_key": None}
+
+
+def save_config(config: dict):
+    """保存配置"""
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def load_recent():
+    """加载最近访问"""
+    if RECENT_FILE.exists():
+        try:
+            with open(RECENT_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"files": [], "dirs": []}
+
+
+def save_recent(recent: dict):
+    """保存最近访问"""
+    try:
+        with open(RECENT_FILE, "w", encoding="utf-8") as f:
+            json.dump(recent, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def add_recent_file(path: str):
+    """添加最近访问的文件"""
+    recent = load_recent()
+    # 移除重复项
+    recent["files"] = [f for f in recent.get("files", []) if f != path]
+    # 添加到开头
+    recent["files"].insert(0, path)
+    # 只保留最近 20 个
+    recent["files"] = recent["files"][:20]
+    save_recent(recent)
+
+
+def add_recent_dir(path: str):
+    """添加最近访问的目录"""
+    recent = load_recent()
+    # 移除重复项
+    recent["dirs"] = [d for d in recent.get("dirs", []) if d != path]
+    # 添加到开头
+    recent["dirs"].insert(0, path)
+    # 只保留最近 10 个
+    recent["dirs"] = recent["dirs"][:10]
+    save_recent(recent)
+
 # 密码认证 (从环境变量读取，默认无密码)
 NFO_PASSWORD = os.environ.get("NFO_PASSWORD", "")
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
@@ -49,8 +122,12 @@ security = HTTPBasic()
 # 模板管理器
 template_mgr = TemplateManager(Path(__file__).parent / "templates.json")
 
+# 加载配置
+_config = load_config()
+_tmdb_api_key = _config.get("tmdb_api_key") or TMDB_API_KEY
+
 # TMDB 客户端和映射器
-tmdb_client = TMDBClient(api_key=TMDB_API_KEY)
+tmdb_client = TMDBClient(api_key=_tmdb_api_key)
 tmdb_mapper = TMDBMapper(tmdb_client=tmdb_client)
 
 
@@ -154,6 +231,59 @@ class TmdbSearchRequest(BaseModel):
 class TmdbConfigRequest(BaseModel):
     """TMDB 配置请求模型"""
     api_key: str
+
+
+# ========== 预览 API 模型 ==========
+
+class PreviewRequest(BaseModel):
+    """预览请求模型 - 支持批量预览"""
+    paths: List[str]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "paths": ["/path/to/movie.nfo", "/path/to/tvshow.nfo"]
+            }
+        }
+
+
+class PreviewData(BaseModel):
+    """预览数据模型 - 只包含核心字段"""
+    title: str = ""
+    originaltitle: str = ""
+    year: str = ""
+    rating: str = ""
+    type: str = "movie"
+    genres: List[str] = []
+    runtime: str = ""
+    poster: str = ""
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "盗梦空间",
+                "originaltitle": "Inception",
+                "year": "2010",
+                "rating": "8.8",
+                "type": "movie",
+                "genres": ["动作", "科幻", "惊悚"],
+                "runtime": "148",
+                "poster": "poster.jpg"
+            }
+        }
+
+
+class PreviewResultItem(BaseModel):
+    """单个文件的预览结果"""
+    path: str
+    success: bool
+    preview: Optional[PreviewData] = None
+    error: Optional[str] = None
+
+
+class PreviewResponse(BaseModel):
+    """预览 API 响应模型"""
+    results: List[PreviewResultItem]
 
 
 # ========== 搜索核心逻辑 ==========
@@ -344,7 +474,10 @@ async def list_directory(req: ListDirRequest, auth: bool = Depends(check_auth)):
                 })
     except PermissionError:
         raise HTTPException(status_code=403, detail="无权限访问")
-    
+
+    # 记录最近访问的目录
+    add_recent_dir(str(path))
+
     return {
         "current": str(path),
         "parent": str(path.parent) if path.parent != path else None,
@@ -357,6 +490,8 @@ async def load_nfo(req: FileRequest, auth: bool = Depends(check_auth)):
     """Load and parse NFO file."""
     try:
         data = parser.parse(req.path)
+        # 记录最近访问
+        add_recent_file(req.path)
         return {
             "success": True,
             "data": {
@@ -743,13 +878,76 @@ async def tmdb_get_episode(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/tmdb/id/{tmdb_id}")
+async def tmdb_get_by_id(tmdb_id: int, media_type: str = "auto", auth: bool = Depends(check_auth)):
+    """通过 TMDB ID 自动获取详情
+
+    Args:
+        tmdb_id: TMDB ID
+        media_type: 类型 (auto/movie/tv)，默认 auto 自动检测
+    """
+    try:
+        # 自动检测模式：先尝试电影
+        if media_type == "auto":
+            try:
+                data = tmdb_client.get_movie_details(tmdb_id)
+                nfo_data = tmdb_mapper.map_movie(data)
+                return {**asdict(nfo_data), "detected_type": "movie"}
+            except Exception:
+                # 电影失败，尝试电视剧
+                data = tmdb_client.get_tv_details(tmdb_id)
+                nfo_data = tmdb_mapper.map_tv_show(data)
+                return {**asdict(nfo_data), "detected_type": "tv"}
+
+        # 明确指定类型
+        elif media_type == "movie":
+            data = tmdb_client.get_movie_details(tmdb_id)
+            nfo_data = tmdb_mapper.map_movie(data)
+            return asdict(nfo_data)
+
+        elif media_type == "tv":
+            data = tmdb_client.get_tv_details(tmdb_id)
+            nfo_data = tmdb_mapper.map_tv_show(data)
+            return asdict(nfo_data)
+
+        else:
+            raise HTTPException(status_code=400, detail="无效的媒体类型")
+
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"未找到 TMDB ID {tmdb_id} 对应的内容")
+
+
 @app.post("/api/tmdb/config")
 async def tmdb_config(req: TmdbConfigRequest, auth: bool = Depends(check_auth)):
-    """配置 TMDB API Key"""
-    # 这里简单地更新当前实例的 API Key
-    # 在实际生产环境中，应该将 API Key 持久化存储（例如写入配置文件或数据库）
+    """配置 TMDB API Key（持久化保存）"""
+    # 更新当前实例的 API Key
     tmdb_client.api_key = req.api_key
-    return {"success": True, "message": "TMDB API Key 已更新"}
+
+    # 持久化保存到配置文件
+    config = load_config()
+    config["tmdb_api_key"] = req.api_key
+    save_config(config)
+
+    return {"success": True, "message": "TMDB API Key 已保存"}
+
+
+@app.get("/api/tmdb/config")
+async def tmdb_get_config(auth: bool = Depends(check_auth)):
+    """获取当前 TMDB 配置"""
+    config = load_config()
+    return {
+        "has_api_key": bool(tmdb_client.api_key),
+        "api_key configured": bool(config.get("tmdb_api_key"))
+    }
+
+
+@app.get("/api/recent")
+async def get_recent(auth: bool = Depends(check_auth)):
+    """获取最近访问记录"""
+    recent = load_recent()
+    return recent
 
 
 if __name__ == "__main__":
