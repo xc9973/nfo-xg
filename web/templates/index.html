@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>NFO 编辑器</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -224,6 +225,37 @@
 
         function updateSelectedCount() {
             document.getElementById('selectedCount').textContent = selectedFiles.size;
+        }
+
+        // 错误信息过滤 - 避免暴露敏感信息
+        function sanitizeError(error) {
+            const errorStr = String(error);
+
+            // 过滤敏感信息模式
+            const sensitivePatterns = [
+                /\/Users\/[^\/]+/gi,           // 用户路径
+                /\/home\/[^\/]+/gi,            // Linux用户路径
+                /C:\\Users\\[^\\]+/gi,         // Windows用户路径
+                /API[_-]?KEY/i,                // API密钥
+                /token/i,                      // 令牌
+                /password/i,                   // 密码
+                /secret/i,                     // 密钥
+                /\/\/.*@/,                     // URL中的用户名密码
+                /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, // IP地址
+                /file:\/\/\/[^\s]*/gi          // 文件URL
+            ];
+
+            let sanitized = errorStr;
+            for (const pattern of sensitivePatterns) {
+                sanitized = sanitized.replace(pattern, '[REDACTED]');
+            }
+
+            // 如果错误被过滤了，返回通用消息
+            if (sanitized !== errorStr) {
+                return '操作失败，请检查文件权限和网络连接';
+            }
+
+            return sanitized;
         }
 
         function addHistory(action, type) {
@@ -463,6 +495,50 @@
             return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
+        // ========== CSRF 保护 ==========
+        // 获取 CSRF Token
+        function getCSRFToken() {
+            const metaTag = document.querySelector('meta[name="csrf-token"]');
+            return metaTag ? metaTag.getAttribute('content') : '';
+        }
+
+        // 带 CSRF 保护的 Fetch 封装
+        async function fetchWithCSRF(url, options = {}) {
+            const csrfToken = getCSRFToken();
+
+            // 如果是 POST/PUT/DELETE 请求，自动添加 CSRF token
+            if (!['GET', 'HEAD', 'OPTIONS'].includes(options.method?.toUpperCase())) {
+                options.headers = options.headers || {};
+
+                // 从 headers 对象中获取
+                if (options.headers instanceof Headers) {
+                    options.headers.append('X-CSRF-Token', csrfToken);
+                } else if (options.headers instanceof Object) {
+                    options.headers['X-CSRF-Token'] = csrfToken;
+                }
+            }
+
+            try {
+                const response = await fetch(url, options);
+
+                // 检查 CSRF 验证失败响应
+                if (response.status === 403) {
+                    const text = await response.text();
+                    if (text.includes('CSRF') || text.includes('csrf')) {
+                        showToast('CSRF 验证失败，请刷新页面重试', 'error');
+                        throw new Error('CSRF token validation failed');
+                    }
+                }
+
+                return response;
+            } catch (error) {
+                console.error('Fetch error:', error);
+                throw error;
+            }
+        }
+
+        // ========== 原有函数 ==========
+
         function renderListEditor(containerId, items, field) {
             const container = document.getElementById(containerId);
             let html = '<div class="list-items">';
@@ -560,7 +636,7 @@
                 saveBtn.classList.add('loading');
 
                 const data = collectData();
-                const res = await fetch('/api/save', {
+                const res = await fetchWithCSRF('/api/save', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({path: currentFile, data})
@@ -706,7 +782,7 @@
             for (const filePath of files) {
                 try {
                     // 加载文件
-                    const loadRes = await fetch('/api/load', {
+                    const loadRes = await fetchWithCSRF('/api/load', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({path: filePath})
@@ -750,7 +826,7 @@
 
                     // 保存文件
                     updateBatchProgress(`保存: ${currentTitle}`);
-                    const saveRes = await fetch('/api/save', {
+                    const saveRes = await fetchWithCSRF('/api/save', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -772,12 +848,12 @@
                     });
 
                 } catch (e) {
-                    // 记录失败
+                    // 记录失败 - 使用过滤后的错误信息
                     batchTMDBState.failed++;
                     batchTMDBState.results.push({
                         file: filePath,
                         success: false,
-                        error: e.message
+                        error: sanitizeError(e)
                     });
                 }
 
@@ -802,16 +878,37 @@
                 return;
             }
 
+            // 字段名白名单 - 只允许更新这些字段
+            const ALLOWED_FIELDS = [
+                'title', 'originaltitle', 'sorttitle', 'set',
+                'year', 'plot', 'outline', 'tagline',
+                'runtime', 'thumb', 'fanart', 'poster',
+                'mpaa', 'playcount', 'lastplayed', 'id',
+                'genre', 'country', 'studio', 'director',
+                'writer', 'credits', 'rating', 'votes',
+                'premiered', 'releasedate', 'episode',
+                'season', 'trailer', 'showlink'
+            ];
+
             // 输入要更新的字段
-            const field = prompt('要批量更新哪个字段？\n(例: studio, year, rating, director)');
+            const field = prompt('要批量更新哪个字段？\n(例: studio, year, rating, director)\n\n允许的字段:\n' + ALLOWED_FIELDS.join(', '));
 
             if (!field) return;
 
-            const value = prompt(`输入 ${field} 的新值:`);
+            // 验证字段名
+            const normalizedField = field.trim().toLowerCase();
+            const validField = ALLOWED_FIELDS.find(f => f.toLowerCase() === normalizedField);
+
+            if (!validField) {
+                showToast(`无效的字段名: "${field}"\n请使用白名单中的字段`, 'error');
+                return;
+            }
+
+            const value = prompt(`输入 ${validField} 的新值:`);
             if (value === null) return;
 
             // 确认操作
-            if (!confirm(`确定要将 ${selectedFiles.size} 个文件的 ${field} 更新为 "${value}"？`)) {
+            if (!confirm(`确定要将 ${selectedFiles.size} 个文件的 ${validField} 更新为 "${value}"？`)) {
                 return;
             }
 
@@ -841,12 +938,12 @@
 
                     if (!loadRes.ok) throw new Error(loadData.detail);
 
-                    // 更新字段
-                    loadData.data[field] = value;
+                    // 更新字段 - 使用验证后的字段名
+                    loadData.data[validField] = value;
 
                     // 保存文件
                     updateBatchProgress(`保存: ${filePath.split('/').pop()}`);
-                    const saveRes = await fetch('/api/save', {
+                    const saveRes = await fetchWithCSRF('/api/save', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
@@ -864,7 +961,7 @@
                     batchTMDBState.results.push({
                         file: filePath,
                         success: false,
-                        error: e.message
+                        error: sanitizeError(e)
                     });
                 }
 
@@ -875,7 +972,7 @@
             showBatchComplete();
 
             // 记录批量历史
-            addBatchHistory(`批量更新 ${field}`, batchTMDBState.completed, batchTMDBState.failed);
+            addBatchHistory(`批量更新 ${validField}`, batchTMDBState.completed, batchTMDBState.failed);
 
             exitBatchMode();
         }
