@@ -1879,6 +1879,121 @@
             }
         }
 
+        // ========== 侧边栏预览功能 ==========
+
+        function renderSidebarPreview(data) {
+            const content = document.getElementById('previewSidebarContent');
+            const actions = document.getElementById('previewSidebarActions');
+
+            if (!data) {
+                content.innerHTML = '<div class="preview-loading"><div class="preview-loading-spinner"></div><p>加载中...</p></div>';
+                actions.innerHTML = '';
+                return;
+            }
+
+            // 类型标签
+            const typeLabel = {
+                'movie': '电影',
+                'tvshow': '剧集',
+                'episodedetails': '单集'
+            }[data.type] || data.type;
+
+            // 生成内容 HTML
+            content.innerHTML = `
+                <div class="preview-section">
+                    <h4 class="preview-section-title">📺 基本信息</h4>
+                    <div class="preview-info-grid">
+                        <span class="preview-info-label">标题:</span>
+                        <span class="preview-info-value">${esc(data.title || '无标题')}</span>
+
+                        ${data.originaltitle ? `
+                            <span class="preview-info-label">原标题:</span>
+                            <span class="preview-info-value">${esc(data.originaltitle)}</span>
+                        ` : ''}
+
+                        <span class="preview-info-label">类型:</span>
+                        <span class="preview-info-value">${typeLabel}</span>
+
+                        ${data.year ? `
+                            <span class="preview-info-label">年份:</span>
+                            <span class="preview-info-value">${data.year}</span>
+                        ` : ''}
+
+                        ${data.rating ? `
+                            <span class="preview-info-label">评分:</span>
+                            <span class="preview-info-value">⭐ ${data.rating}</span>
+                        ` : ''}
+
+                        ${data.runtime ? `
+                            <span class="preview-info-label">时长:</span>
+                            <span class="preview-info-value">${data.runtime} 分钟</span>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${data.genres && data.genres.length > 0 ? `
+                    <div class="preview-section">
+                        <h4 class="preview-section-title">🎭 类型</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                            ${data.genres.map(g => `<span class="preview-tooltip-genre-tag">${esc(g)}</span>`).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${data.poster ? `
+                    <div class="preview-section">
+                        <h4 class="preview-section-title">🖼 海报</h4>
+                        <div style="font-size: 12px; color: #888;">${esc(data.poster)}</div>
+                    </div>
+                ` : ''}
+            `;
+
+            // 生成操作按钮
+            actions.innerHTML = `
+                <button class="btn btn-primary" onclick="loadPreviewToEditor('${esc(data.path)}')">
+                    📥 加载到编辑器
+                </button>
+                <button class="btn btn-secondary" onclick="openPreviewInFileBrowser('${esc(data.path)}')">
+                    📁 打开所在目录
+                </button>
+            `;
+        }
+
+        function loadPreviewToEditor(path) {
+            previewState.closePreview();
+            loadNfo(path);
+        }
+
+        function openPreviewInFileBrowser(path) {
+            const dir = path.substring(0, path.lastIndexOf('/')) || path.substring(0, path.lastIndexOf('\\\\'));
+            if (dir) {
+                previewState.closePreview();
+                loadDir(dir);
+            }
+        }
+
+        // 订阅状态变化，自动更新 UI
+        previewState.subscribe((newState) => {
+            const sidebar = document.getElementById('previewSidebar');
+
+            if (newState.mode === 'sidebar') {
+                sidebar.classList.add('active');
+                if (newState.isLoading) {
+                    renderSidebarPreview(null);
+                } else if (newState.previewData) {
+                    renderSidebarPreview(newState.previewData);
+                } else if (newState.error) {
+                    document.getElementById('previewSidebarContent').innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #e74c3c;">
+                            ❌ ${esc(newState.error)}
+                        </div>
+                    `;
+                }
+            } else {
+                sidebar.classList.remove('active');
+            }
+        });
+
         function renderSearchResults(results, truncated) {
             const container = document.getElementById('searchResults');
             const fileList = document.getElementById('fileList');
@@ -1909,8 +2024,13 @@
                 const matchTypeLabel = getMatchTypeLabel(item.match_type);
 
                 html += `
-                    <div class="search-result-item ${isSelected}" data-path="${esc(item.path)}" onclick="selectSearchResult('${esc(item.path)}')">
-                        <div class="search-result-filename">📄 ${esc(item.filename)}</div>
+                    <div class="search-result-item ${isSelected}" data-path="${esc(item.path)}">
+                        <button class="search-result-preview-btn" onclick="event.stopPropagation(); openSidebarPreview('${esc(item.path)}')">
+                            👁 预览
+                        </button>
+                        <div class="search-result-filename" onclick="selectSearchResult('${esc(item.path)}')">
+                            📄 ${esc(item.filename)}
+                        </div>
                         <div class="search-result-path">${esc(item.path)}</div>
                         <span class="search-result-match">${matchTypeLabel}</span>
                         ${item.title ? `<div class="search-result-title">${esc(item.title)}</div>` : ''}
@@ -1924,6 +2044,10 @@
             document.querySelectorAll('.search-result-item').forEach(item => {
                 new HoverPreview(item);
             });
+        }
+
+        function openSidebarPreview(path) {
+            previewState.openPreview(path, 'sidebar');
         }
 
         function getMatchTypeLabel(matchType) {
@@ -2178,5 +2302,19 @@
 
     <!-- Toast 容器 -->
     <div id="toastContainer" class="toast-container"></div>
+
+    <!-- 预览侧边栏 -->
+    <div id="previewSidebar" class="preview-sidebar">
+        <div class="preview-sidebar-header">
+            <h3 class="preview-sidebar-title">NFO 预览</h3>
+            <button class="preview-sidebar-close" onclick="previewState.closePreview()">×</button>
+        </div>
+        <div class="preview-sidebar-content" id="previewSidebarContent">
+            <!-- 内容由 JavaScript 动态生成 -->
+        </div>
+        <div class="preview-actions" id="previewSidebarActions">
+            <!-- 操作按钮由 JavaScript 动态生成 -->
+        </div>
+    </div>
 </body>
 </html>
