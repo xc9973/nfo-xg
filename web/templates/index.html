@@ -31,9 +31,31 @@
         </div>
         
         <div class="editor">
-            <h2>NFO 编辑器</h2>
+            <h2>
+                NFO 编辑器
+                <span id="modifiedBadge" class="modified-badge" style="display:none">● 未保存</span>
+                <button class="btn-icon-small" onclick="toggleHistory()" title="操作历史" id="historyBtn" style="display:none">📜</button>
+            </h2>
+
+            <!-- 历史面板 -->
+            <div id="historyPanel" class="history-panel" style="display:none">
+                <div class="history-header">
+                    <h4>操作历史</h4>
+                    <button class="btn-icon-small" onclick="toggleHistory()">×</button>
+                </div>
+                <div id="historyList" class="history-list"></div>
+            </div>
+
             <div id="editorContent">
                 <p style="color:#666">← 从左侧选择一个 .nfo 文件开始编辑</p>
+            </div>
+
+            <!-- 添加加载状态覆盖层 -->
+            <div id="editorLoading" class="editor-loading" style="display:none">
+                <div class="loading-spinner">
+                    <span class="spinner large"></span>
+                    <p>加载中...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -42,8 +64,67 @@
         let currentFile = null;
         let nfoData = null;
 
+        // 修改状态管理
+        let isModified = false;
+
+        function setModified(value) {
+            isModified = value;
+            const badge = document.getElementById('modifiedBadge');
+            if (badge) {
+                badge.style.display = value ? 'inline-block' : 'none';
+            }
+        }
+
+        function checkModified() {
+            if (isModified) {
+                return confirm('有未保存的更改，确定要继续吗？');
+            }
+            return true;
+        }
+
+        // 操作历史记录
+        let actionHistory = [];
+
+        function addHistory(action, type) {
+            const timestamp = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            actionHistory.unshift({action, type, timestamp});
+
+            // 最多保留 20 条
+            if (actionHistory.length > 20) {
+                actionHistory = actionHistory.slice(0, 20);
+            }
+
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            const btn = document.getElementById('historyBtn');
+
+            if (actionHistory.length === 0) {
+                btn.style.display = 'none';
+                return;
+            }
+
+            btn.style.display = 'inline-block';
+
+            list.innerHTML = actionHistory.map(item => `
+                <div class="history-item ${item.type}">
+                    <span>${item.action}</span>
+                    <span class="history-time">${item.timestamp}</span>
+                </div>
+            `).join('');
+        }
+
+        function toggleHistory() {
+            const panel = document.getElementById('historyPanel');
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+        }
+
         // Load directory
         async function loadDir(path = '') {
+            if (!checkModified()) return;
+
             try {
                 const res = await fetch('/api/list', {
                     method: 'POST',
@@ -81,7 +162,15 @@
 
         // Load NFO file
         async function loadNfo(path) {
+            // 检查未保存更改
+            if (!checkModified()) return;
+
+            const loading = document.getElementById('editorLoading');
+
             try {
+                // 显示加载状态
+                loading.style.display = 'flex';
+
                 const res = await fetch('/api/load', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -89,13 +178,20 @@
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail);
-                
+
                 currentFile = path;
                 nfoData = data.data;
                 renderEditor();
+                setModified(false); // 加载新文件后清除修改标记
                 showToast('加载成功', 'success');
+
+                // 记录历史
+                addHistory(`加载: ${path.split('/').pop()}`, 'load');
+
             } catch (e) {
                 showToast(e.message, 'error');
+            } finally {
+                loading.style.display = 'none';
             }
         }
 
@@ -176,7 +272,11 @@
                     </div>
                 </div>
                 <div class="actions">
-                    <button class="btn btn-primary" onclick="saveNfo()">💾 保存</button>
+                    <button class="btn btn-primary" id="saveBtn" onclick="saveNfo()">
+                        <span class="btn-text">💾 保存</span>
+                        <span class="btn-loading" style="display:none"><span class="spinner"></span> 保存中...</span>
+                        <span class="btn-success" style="display:none">✓ 已保存</span>
+                    </button>
                     <button class="btn btn-secondary" onclick="loadNfo(currentFile)">🔄 重新加载</button>
                     <button class="btn btn-secondary" onclick="saveAsTemplate()">📋 存为模板</button>
                 </div>
@@ -184,6 +284,12 @@
             renderListEditor('genresEditor', d.genres, 'genres');
             renderListEditor('directorsEditor', d.directors, 'directors');
             renderActorsEditor();
+
+            // 为所有输入框添加修改追踪
+            document.querySelectorAll('#editorContent input, #editorContent textarea, #editorContent select').forEach(el => {
+                el.addEventListener('input', () => setModified(true));
+                el.addEventListener('change', () => setModified(true));
+            });
         }
 
         function esc(s) {
@@ -280,7 +386,12 @@
         }
 
         async function saveNfo() {
+            const saveBtn = document.getElementById('saveBtn');
+
             try {
+                // 设置加载状态
+                saveBtn.classList.add('loading');
+
                 const data = collectData();
                 const res = await fetch('/api/save', {
                     method: 'POST',
@@ -288,19 +399,70 @@
                     body: JSON.stringify({path: currentFile, data})
                 });
                 const result = await res.json();
+
                 if (!res.ok) throw new Error(result.detail);
+
+                // 设置成功状态
+                saveBtn.classList.remove('loading');
+                saveBtn.classList.add('success');
                 showToast('保存成功!', 'success');
+
+                // 清除修改标记
+                if (typeof setModified === 'function') {
+                    setModified(false);
+                }
+
+                // 记录历史
+                addHistory(`保存: ${currentFile.split('/').pop()}`, 'save');
+
+                // 2秒后恢复按钮状态
+                setTimeout(() => {
+                    saveBtn.classList.remove('success');
+                }, 2000);
+
             } catch (e) {
+                saveBtn.classList.remove('loading');
                 showToast(e.message, 'error');
             }
         }
 
-        function showToast(msg, type) {
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toastContainer');
+
+            // 创建 Toast 元素
             const toast = document.createElement('div');
-            toast.className = 'toast ' + type;
-            toast.textContent = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
+            toast.className = `toast ${type}`;
+
+            // 添加图标
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '⚠',
+                info: 'ℹ'
+            };
+
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || icons.info}</span>
+                <span class="toast-message">${esc(message)}</span>
+            `;
+
+            container.appendChild(toast);
+
+            // 自动移除
+            setTimeout(() => {
+                toast.classList.add('removing');
+                toast.addEventListener('animationend', () => {
+                    toast.remove();
+                });
+            }, duration);
+
+            // 允许点击关闭
+            toast.addEventListener('click', () => {
+                toast.classList.add('removing');
+                toast.addEventListener('animationend', () => {
+                    toast.remove();
+                });
+            });
         }
 
         // Init
@@ -532,6 +694,9 @@
 
             // 重新渲染表单
             renderEditor();
+
+            // 记录历史
+            addHistory('从 TMDB 获取数据', 'apply');
         }
 
         // ========== 搜索功能 ==========
@@ -783,5 +948,8 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast 容器 -->
+    <div id="toastContainer" class="toast-container"></div>
 </body>
 </html>
