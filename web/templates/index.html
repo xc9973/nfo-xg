@@ -17,6 +17,10 @@
                 </div>
             </div>
             <div class="path-bar" id="currentPath">~</div>
+            <div class="quick-access">
+                <button class="btn btn-secondary btn-small" onclick="quickOpenDirectory()">📂 打开目录</button>
+                <button class="btn btn-secondary btn-small" onclick="quickOpenFile()">📄 打开 NFO</button>
+            </div>
             <div class="search-section">
                 <div class="search-bar">
                     <input type="text" id="searchInput" placeholder="搜索 NFO 文件..." onkeypress="if(event.key==='Enter')search()">
@@ -93,9 +97,169 @@
         </div>
     </div>
 
+    <!-- 隐藏的文件输入，用于快速打开单个 NFO -->
+    <input type="file" id="nfoFileInput" accept=".nfo" style="display:none" onchange="handleNfoFileSelect(event)">
+
     <script>
         let currentFile = null;
         let nfoData = null;
+
+        // ========== 预览缓存系统 ==========
+
+        class PreviewCache {
+            constructor(maxSize = 50, ttl = 5 * 60 * 1000) {
+                this.cache = new Map();
+                this.maxSize = maxSize;
+                this.ttl = ttl;
+            }
+
+            get(path) {
+                const item = this.cache.get(path);
+                if (!item) return null;
+
+                if (Date.now() - item.timestamp > this.ttl) {
+                    this.cache.delete(path);
+                    return null;
+                }
+
+                return item.data;
+            }
+
+            set(path, data) {
+                if (this.cache.size >= this.maxSize) {
+                    // 删除最旧的项
+                    const firstKey = this.cache.keys().next().value;
+                    this.cache.delete(firstKey);
+                }
+
+                this.cache.set(path, {
+                    data,
+                    timestamp: Date.now()
+                });
+            }
+
+            invalidate(path) {
+                this.cache.delete(path);
+            }
+
+            clear() {
+                this.cache.clear();
+            }
+
+            get size() {
+                return this.cache.size;
+            }
+        }
+
+        const previewCache = new PreviewCache();
+
+        // ========== 预览状态管理 ==========
+
+        class PreviewStateManager {
+            constructor() {
+                this.state = {
+                    mode: 'none',  // 'hover', 'sidebar', 'modal', 'none'
+                    currentPath: null,
+                    previewData: null,
+                    isLoading: false,
+                    error: null
+                };
+
+                this.listeners = new Set();
+            }
+
+            setState(updates) {
+                const oldState = { ...this.state };
+                this.state = { ...this.state, ...updates };
+                this.notify(oldState, this.state);
+            }
+
+            subscribe(listener) {
+                this.listeners.add(listener);
+                return () => this.listeners.delete(listener);
+            }
+
+            notify(oldState, newState) {
+                this.listeners.forEach(listener => listener(newState, oldState));
+            }
+
+            async openPreview(path, mode = 'sidebar') {
+                // 检查是否已经在预览此文件
+                if (this.state.currentPath === path && this.state.mode === mode) {
+                    return;
+                }
+
+                this.setState({
+                    mode,
+                    currentPath: path,
+                    isLoading: true,
+                    error: null
+                });
+
+                try {
+                    const data = await this.fetchPreviewData(path);
+                    this.setState({
+                        previewData: data,
+                        isLoading: false
+                    });
+                } catch (error) {
+                    this.setState({
+                        error: error.message,
+                        isLoading: false
+                    });
+                }
+            }
+
+            closePreview() {
+                this.setState({
+                    mode: 'none',
+                    currentPath: null,
+                    previewData: null,
+                    error: null
+                });
+            }
+
+            async fetchPreviewData(path) {
+                // 先尝试从缓存获取
+                const cached = previewCache.get(path);
+                if (cached) {
+                    return cached;
+                }
+
+                // 从 API 获取
+                const res = await fetch('/api/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paths: [path] })
+                });
+
+                if (!res.ok) {
+                    throw new Error(res.detail || '预览加载失败');
+                }
+
+                const data = await res.json();
+                const result = data.results[0];
+
+                if (!result.success) {
+                    throw new Error(result.error || '无法加载预览');
+                }
+
+                // 存入缓存
+                previewCache.set(path, result.preview);
+
+                return result.preview;
+            }
+
+            invalidateCache(path) {
+                if (path) {
+                    previewCache.invalidate(path);
+                } else {
+                    previewCache.clear();
+                }
+            }
+        }
+
+        const previewState = new PreviewStateManager();
 
         // 修改状态管理
         let isModified = false;
@@ -345,6 +509,36 @@
         }
 
         // Load NFO file
+        // 快速打开目录
+        function quickOpenDirectory() {
+            const path = prompt('请输入要打开的目录路径:', '');
+            if (path && path.trim()) {
+                listDir(path.trim());
+            }
+        }
+
+        // 快速打开单个 NFO 文件
+        function quickOpenFile() {
+            document.getElementById('nfoFileInput').click();
+        }
+
+        // 处理 NFO 文件选择
+        async function handleNfoFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 注意：由于浏览器安全限制，无法直接读取用户选择的文件路径
+            // 这里需要用户手动输入文件路径，或者使用后端 API 处理
+            const path = prompt('已选择文件: ' + file.name + '\n\n请输入完整的文件路径:', file.name);
+
+            if (path && path.trim()) {
+                await loadNfo(path.trim());
+            }
+
+            // 清空 input 以便可以再次选择同一文件
+            event.target.value = '';
+        }
+
         async function loadNfo(path) {
             // 检查未保存更改
             if (!checkModified()) return;
@@ -1356,6 +1550,63 @@
             container.innerHTML = html;
         }
 
+        // 通过 TMDB ID 直接获取详情
+        async function fetchById() {
+            const tmdbId = document.getElementById('tmdbIdInput').value.trim();
+            const mediaType = document.getElementById('tmdbTypeSelect').value;
+            const loading = document.getElementById('tmdbLoading');
+            const errorDiv = document.getElementById('tmdbError');
+
+            if (!tmdbId) {
+                showToast('请输入 TMDB ID', 'error');
+                return;
+            }
+
+            if (!/^\d+$/.test(tmdbId)) {
+                showToast('TMDB ID 必须是纯数字', 'error');
+                return;
+            }
+
+            loading.style.display = 'flex';
+            errorDiv.style.display = 'none';
+
+            try {
+                const endpoint = `/api/tmdb/id/${tmdbId}?media_type=${mediaType}`;
+                const res = await fetch(endpoint);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    let errorMsg = '获取失败';
+                    if (res.status === 401) {
+                        errorMsg = 'TMDB API Key 未配置或无效';
+                    } else if (res.status === 404) {
+                        errorMsg = `未找到 TMDB ID ${tmdbId} 对应的内容`;
+                    } else if (data.detail) {
+                        errorMsg = data.detail;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // 填充 NFO 数据
+                applyTMDBData(data);
+
+                // 显示检测到的类型（如果是自动检测）
+                if (data.detected_type) {
+                    const typeLabel = data.detected_type === 'movie' ? '电影' : '电视剧';
+                    showToast(`成功获取 ${typeLabel} 信息`, 'success');
+                } else {
+                    showToast('成功获取 TMDB 信息', 'success');
+                }
+
+                closeTMDBModal();
+            } catch (e) {
+                errorDiv.textContent = e.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
         // 选择 TMDB 结果并获取详情
         async function selectTMDBResult(tmdbId, mediaType) {
             const loading = document.getElementById('tmdbLoading');
@@ -1666,22 +1917,52 @@
 
     <!-- TMDB 搜索模态框 -->
     <div id="tmdbModal" class="modal" onclick="handleModalClick(event)">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🎬 搜索 TMDB</h3>
+        <div class="modal-content tmdb-modal">
+            <div class="modal-header tmdb-header">
+                <div class="tmdb-header-left">
+                    <span class="tmdb-icon">🎬</span>
+                    <h3>TMDB 获取</h3>
+                </div>
                 <button class="modal-close" onclick="closeTMDBModal()">×</button>
             </div>
             <div class="modal-body">
-                <div class="tmdb-search-bar">
-                    <input type="text" id="tmdbSearchInput" placeholder="输入电影或剧集名称..."
-                        onkeypress="if(event.key==='Enter')searchTMDB()">
-                    <button class="btn btn-primary" onclick="searchTMDB()">搜索</button>
+                <div class="tmdb-card">
+                    <div class="tmdb-card-label">
+                        <span class="label-icon">📺</span>
+                        <span>媒体类型</span>
+                    </div>
+                    <select id="tmdbTypeSelect" class="tmdb-type-select">
+                        <option value="auto">🔍 自动检测</option>
+                        <option value="movie">🎥 电影</option>
+                        <option value="tv">📺 电视剧</option>
+                    </select>
                 </div>
+
+                <div class="tmdb-card">
+                    <div class="tmdb-card-label">
+                        <span class="label-icon">🔢</span>
+                        <span>TMDB ID</span>
+                    </div>
+                    <div class="tmdb-input-wrapper">
+                        <input type="number" id="tmdbIdInput" class="tmdb-id-input" placeholder="输入 TMDB ID，例如: 12345"
+                            onkeypress="if(event.key==='Enter')fetchById()">
+                        <button class="btn-tmdb-fetch" onclick="fetchById()">
+                            <span class="fetch-icon">⚡</span>
+                            <span>获取</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tmdb-footer-hint">
+                    <span class="hint-icon">💡</span>
+                    <span>TMDB ID 是纯数字，可在 <a href="https://themoviedb.org" target="_blank">themoviedb.org</a> 上查找</span>
+                </div>
+
                 <div id="tmdbLoading" class="tmdb-loading" style="display:none">
-                    <span class="spinner"></span> 搜索中...
+                    <div class="tmdb-spinner"></div>
+                    <span>正在获取 TMDB 数据...</span>
                 </div>
                 <div id="tmdbError" class="tmdb-error" style="display:none"></div>
-                <div id="tmdbResults" class="tmdb-results"></div>
             </div>
         </div>
     </div>
