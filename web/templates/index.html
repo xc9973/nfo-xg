@@ -614,13 +614,180 @@
         // 初始化：显示批量控制按钮
         document.querySelector('.batch-controls').style.display = 'block';
 
-        // 批量操作占位函数（Task 2-3 实现）
-        function batchTMDBFetch() {
-            showToast('批量 TMDB 获取功能即将实现', 'info');
+        // 批量 TMDB 获取状态
+        let batchTMDBState = {
+            active: false,
+            total: 0,
+            completed: 0,
+            failed: 0,
+            results: []
+        };
+
+        // 批量 TMDB 获取
+        async function batchTMDBFetch() {
+            if (selectedFiles.size === 0) {
+                showToast('请先选择文件', 'warning');
+                return;
+            }
+
+            // 确认操作
+            if (!confirm(`确定要批量获取 ${selectedFiles.size} 个文件的 TMDB 数据？`)) {
+                return;
+            }
+
+            // 初始化状态
+            batchTMDBState = {
+                active: true,
+                total: selectedFiles.size,
+                completed: 0,
+                failed: 0,
+                results: []
+            };
+
+            // 显示进度面板
+            showBatchProgress();
+
+            // 逐个处理
+            const files = Array.from(selectedFiles);
+            for (const filePath of files) {
+                try {
+                    // 加载文件
+                    const loadRes = await fetch('/api/load', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({path: filePath})
+                    });
+                    const loadData = await loadRes.json();
+
+                    if (!loadRes.ok) throw new Error(loadData.detail);
+
+                    const currentTitle = loadData.data.title;
+                    if (!currentTitle) {
+                        throw new Error('没有标题');
+                    }
+
+                    // 搜索 TMDB
+                    updateBatchProgress(`搜索: ${currentTitle}`);
+                    const searchRes = await fetch(`/api/tmdb/search?q=${encodeURIComponent(currentTitle)}`);
+                    const searchData = await searchRes.json();
+
+                    if (!searchRes.ok) {
+                        throw new Error(searchData.detail || '搜索失败');
+                    }
+
+                    if (!searchData.results || searchData.results.length === 0) {
+                        throw new Error('未找到结果');
+                    }
+
+                    // 选择第一个结果
+                    const firstResult = searchData.results[0];
+                    const endpoint = firstResult.media_type === 'movie'
+                        ? `/api/tmdb/movie/${firstResult.id}`
+                        : `/api/tmdb/tv/${firstResult.id}`;
+
+                    // 获取详情
+                    updateBatchProgress(`获取详情: ${currentTitle}`);
+                    const detailRes = await fetch(endpoint);
+                    const detailData = await detailRes.json();
+
+                    if (!detailRes.ok) {
+                        throw new Error(detailData.detail || '获取详情失败');
+                    }
+
+                    // 保存文件
+                    updateBatchProgress(`保存: ${currentTitle}`);
+                    const saveRes = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            path: filePath,
+                            data: detailData
+                        })
+                    });
+
+                    if (!saveRes.ok) {
+                        throw new Error('保存失败');
+                    }
+
+                    // 记录成功
+                    batchTMDBState.completed++;
+                    batchTMDBState.results.push({
+                        file: filePath,
+                        success: true,
+                        title: currentTitle
+                    });
+
+                } catch (e) {
+                    // 记录失败
+                    batchTMDBState.failed++;
+                    batchTMDBState.results.push({
+                        file: filePath,
+                        success: false,
+                        error: e.message
+                    });
+                }
+
+                updateBatchProgress();
+            }
+
+            // 完成
+            batchTMDBState.active = false;
+            showBatchComplete();
+
+            // 记录历史
+            addHistory(`批量获取 TMDB: ${batchTMDBState.completed}/${batchTMDBState.total} 成功`, 'batch');
+
+            // 退出多选模式
+            exitBatchMode();
         }
 
+        // 批量保存
         function batchSave() {
             showToast('批量保存功能即将实现', 'info');
+        }
+
+        // 显示批量进度
+        function showBatchProgress() {
+            document.getElementById('batchProgressModal').classList.add('active');
+            updateBatchProgress();
+        }
+
+        // 更新批量进度
+        function updateBatchProgress(message) {
+            const total = batchTMDBState.total;
+            const completed = batchTMDBState.completed;
+            const failed = batchTMDBState.failed;
+            const processed = completed + failed;
+            const percent = (processed / total) * 100;
+
+            // 更新统计
+            document.getElementById('progressTotal').textContent = total;
+            document.getElementById('progressCompleted').textContent = completed;
+            document.getElementById('progressFailed').textContent = failed;
+
+            // 更新进度条
+            document.getElementById('progressFill').style.width = percent + '%';
+
+            // 更新当前文件消息
+            if (message) {
+                document.getElementById('currentFile').textContent = message;
+            }
+        }
+
+        // 显示批量完成
+        function showBatchComplete() {
+            const {total, completed, failed} = batchTMDBState;
+
+            // 显示完成消息
+            setTimeout(() => {
+                document.getElementById('batchProgressModal').classList.remove('active');
+
+                if (failed === 0) {
+                    showToast(`全部完成！成功 ${completed} 个文件`, 'success');
+                } else {
+                    showToast(`完成 ${completed} 个，失败 ${failed} 个`, 'warning');
+                }
+            }, 1000);
         }
 
         // 处理虚拟键盘弹出
@@ -1259,6 +1426,35 @@
                 </div>
                 <div id="tmdbError" class="tmdb-error" style="display:none"></div>
                 <div id="tmdbResults" class="tmdb-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量操作进度模态框 -->
+    <div id="batchProgressModal" class="modal">
+        <div class="modal-content batch-progress-content">
+            <div class="modal-header">
+                <h3>📦 批量操作进度</h3>
+            </div>
+            <div class="modal-body">
+                <div class="batch-progress-summary">
+                    <div class="progress-stat">
+                        <span class="stat-value" id="progressTotal">0</span>
+                        <span class="stat-label">总数</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="stat-value success" id="progressCompleted">0</span>
+                        <span class="stat-label">完成</span>
+                    </div>
+                    <div class="progress-stat">
+                        <span class="stat-value error" id="progressFailed">0</span>
+                        <span class="stat-label">失败</span>
+                    </div>
+                </div>
+                <div class="batch-progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="batch-current-file" id="currentFile"></div>
             </div>
         </div>
     </div>

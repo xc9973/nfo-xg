@@ -476,6 +476,11 @@ textarea {
     color: #e94560;
 }
 
+.history-item.batch {
+    background: rgba(155, 89, 182, 0.2);
+    color: #9b59b6;
+}
+
 .history-time {
     color: #666;
     font-size: 11px;
@@ -1055,4 +1060,57 @@ textarea {
 .tmdb-year {
     font-size: 11px;
     color: #aaa;
+}
+
+/* 批量进度 */
+.batch-progress-content {
+    max-width: 500px;
+}
+
+.batch-progress-summary {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 20px;
+}
+
+.progress-stat {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 32px;
+    font-weight: bold;
+    color: #eee;
+}
+
+.stat-value.success { color: #27ae60; }
+.stat-value.error { color: #e74c3c; }
+
+.stat-label {
+    font-size: 12px;
+    color: #aaa;
+    text-transform: uppercase;
+}
+
+.batch-progress-bar {
+    height: 8px;
+    background: #0f3460;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #e94560, #ff6b6b);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.batch-current-file {
+    text-align: center;
+    color: #aaa;
+    font-size: 13px;
+    min-height: 20px;
 }
