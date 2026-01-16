@@ -9,7 +9,12 @@
 <body>
     <div class="container">
         <div class="file-browser">
-            <h3>📁 文件浏览</h3>
+            <div class="file-browser-header">
+                <h3>📁 文件浏览</h3>
+                <div class="batch-controls" style="display:none">
+                    <button class="btn btn-secondary btn-small" onclick="toggleBatchMode()">✓ 多选</button>
+                </div>
+            </div>
             <div class="path-bar" id="currentPath">~</div>
             <div class="search-section">
                 <div class="search-bar">
@@ -23,6 +28,22 @@
             </div>
             <div class="search-results" id="searchResults" style="display:none"></div>
             <div class="file-list" id="fileList"></div>
+
+            <!-- 批量操作面板 -->
+            <div id="batchPanel" class="batch-panel" style="display:none">
+                <div class="batch-header">
+                    <span class="batch-count">已选择 <strong id="selectedCount">0</strong> 个文件</span>
+                    <button class="btn-icon-small" onclick="exitBatchMode()">×</button>
+                </div>
+                <div class="batch-actions">
+                    <button class="btn btn-primary" onclick="batchTMDBFetch()" style="flex:1">
+                        <span class="btn-icon">🎬</span> 批量获取 TMDB
+                    </button>
+                    <button class="btn btn-secondary" onclick="batchSave()" style="flex:1">
+                        <span class="btn-icon">💾</span> 批量保存
+                    </button>
+                </div>
+            </div>
 
             <!-- 移动端操作按钮 -->
             <div class="mobile-actions" style="display:none">
@@ -91,6 +112,69 @@
         // 操作历史记录
         let actionHistory = [];
 
+        // 批量操作状态
+        let batchMode = false;
+        let selectedFiles = new Set();
+
+        function toggleBatchMode() {
+            batchMode = !batchMode;
+            const controls = document.querySelector('.batch-controls');
+            const panel = document.getElementById('batchPanel');
+            const container = document.querySelector('.container');
+
+            if (batchMode) {
+                controls.querySelector('button').textContent = '✕ 取消';
+                panel.style.display = 'block';
+                container.classList.add('batch-mode');
+                selectedFiles.clear();
+                updateSelectedCount();
+            } else {
+                exitBatchMode();
+            }
+
+            // 重新渲染文件列表
+            const currentPath = document.getElementById('currentPath').textContent;
+            loadDir(currentPath === '~' ? '' : currentPath);
+        }
+
+        function exitBatchMode() {
+            batchMode = false;
+            selectedFiles.clear();
+
+            const controls = document.querySelector('.batch-controls');
+            const panel = document.getElementById('batchPanel');
+            const container = document.querySelector('.container');
+
+            controls.querySelector('button').textContent = '✓ 多选';
+            panel.style.display = 'none';
+            container.classList.remove('batch-mode');
+
+            const currentPath = document.getElementById('currentPath').textContent;
+            loadDir(currentPath === '~' ? '' : currentPath);
+        }
+
+        function toggleFileSelection(path) {
+            if (selectedFiles.has(path)) {
+                selectedFiles.delete(path);
+            } else {
+                selectedFiles.add(path);
+            }
+
+            // 更新视觉状态
+            const item = document.querySelector(`.file-item[data-path="${path}"]`);
+            if (item) {
+                item.classList.toggle('selected', selectedFiles.has(path));
+            }
+
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            document.getElementById('selectedCount').textContent = selectedFiles.size;
+        }
+
+        let actionHistory = [];
+
         function addHistory(action, type) {
             const timestamp = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
             actionHistory.unshift({action, type, timestamp});
@@ -150,19 +234,27 @@
         function renderFileList(data) {
             const list = document.getElementById('fileList');
             let html = '';
-            
+
             if (data.parent) {
                 html += `<div class="file-item dir" onclick="loadDir('${data.parent}')">📁 ..</div>`;
             }
-            
+
             for (const item of data.items) {
                 if (item.is_dir) {
                     html += `<div class="file-item dir" onclick="loadDir('${item.path}')">📁 ${item.name}</div>`;
                 } else if (item.is_nfo) {
-                    html += `<div class="file-item nfo" onclick="loadNfo('${item.path}')">📄 ${item.name}</div>`;
+                    const checkboxId = `select-${item.path.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    html += `
+                        <div class="file-item nfo ${batchMode ? 'selectable' : ''}" data-path="${item.path}">
+                            ${batchMode ? `<input type="checkbox" id="${checkboxId}" class="file-checkbox" onchange="toggleFileSelection('${item.path}')">` : ''}
+                            <label for="${checkboxId}" class="file-item-content" onclick="${batchMode ? '' : `loadNfo('${item.path}')`}">
+                                📄 ${esc(item.name)}
+                            </label>
+                        </div>
+                    `;
                 }
             }
-            
+
             list.innerHTML = html;
         }
 
@@ -518,6 +610,18 @@
         // Init
         loadDir('');
         loadTemplates();
+
+        // 初始化：显示批量控制按钮
+        document.querySelector('.batch-controls').style.display = 'block';
+
+        // 批量操作占位函数（Task 2-3 实现）
+        function batchTMDBFetch() {
+            showToast('批量 TMDB 获取功能即将实现', 'info');
+        }
+
+        function batchSave() {
+            showToast('批量保存功能即将实现', 'info');
+        }
 
         // 处理虚拟键盘弹出
         let originalHeight = window.innerHeight;

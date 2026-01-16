@@ -343,6 +343,85 @@ textarea {
     opacity: 1;
 }
 
+/* 批量操作 */
+.file-browser-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: #0f3460;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.batch-panel {
+    background: #0f3460;
+    border-top: 1px solid #1a4a7a;
+    padding: 15px;
+}
+
+.batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+.batch-count strong {
+    color: #e94560;
+    font-size: 16px;
+}
+
+.batch-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.batch-actions .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-icon {
+    font-size: 16px;
+}
+
+/* 多选模式 */
+.file-item.selectable {
+    padding-left: 35px;
+    position: relative;
+}
+
+.file-checkbox {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.file-item-content {
+    cursor: pointer;
+    flex: 1;
+}
+
+.file-item.selected {
+    background: rgba(233, 69, 96, 0.2);
+}
+
+.batch-mode .file-item:not(.selectable) {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .history-panel {
     background: #16213e;
     border: 1px solid #0f3460;
