@@ -183,7 +183,12 @@
                 this.listeners.forEach(listener => listener(newState, oldState));
             }
 
-            async openPreview(path, mode = 'sidebar') {
+            async openPreview(path, mode = null) {
+                // 自动检测移动端
+                if (!mode) {
+                    mode = window.innerWidth <= 768 ? 'modal' : 'sidebar';
+                }
+
                 // 检查是否已经在预览此文件
                 if (this.state.currentPath === path && this.state.mode === mode) {
                     return;
@@ -1976,7 +1981,7 @@
         previewState.subscribe((newState) => {
             const sidebar = document.getElementById('previewSidebar');
 
-            if (newState.mode === 'sidebar') {
+            if (newState.mode === 'sidebar' || newState.mode === 'modal') {
                 sidebar.classList.add('active');
                 if (newState.isLoading) {
                     renderSidebarPreview(null);
@@ -2048,6 +2053,61 @@
 
         function openSidebarPreview(path) {
             previewState.openPreview(path, 'sidebar');
+        }
+
+        // ========== 移动端预览模态框 ==========
+
+        function renderMobilePreview(data) {
+            // 移动端使用相同的渲染函数
+            renderSidebarPreview(data);
+        }
+
+        // 检测移动端并添加触摸手势支持
+        if (window.innerWidth <= 768) {
+            document.addEventListener('touchstart', handleMobileTouchStart, { passive: true });
+            document.addEventListener('touchmove', handleMobileTouchMove, { passive: true });
+            document.addEventListener('touchend', handleMobileTouchEnd, { passive: true });
+        }
+
+        let mobileTouchStartY = 0;
+        let mobileTouchCurrentY = 0;
+
+        function handleMobileTouchStart(e) {
+            const sidebar = document.getElementById('previewSidebar');
+            if (sidebar.classList.contains('active')) {
+                mobileTouchStartY = e.touches[0].clientY;
+                mobileTouchCurrentY = mobileTouchStartY;
+            }
+        }
+
+        function handleMobileTouchMove(e) {
+            const sidebar = document.getElementById('previewSidebar');
+            if (!sidebar.classList.contains('active')) return;
+
+            mobileTouchCurrentY = e.touches[0].clientY;
+            const diff = mobileTouchCurrentY - mobileTouchStartY;
+
+            if (diff > 0) {
+                sidebar.style.transform = `translateY(${diff}px)`;
+            }
+        }
+
+        function handleMobileTouchEnd(e) {
+            const sidebar = document.getElementById('previewSidebar');
+            if (!sidebar.classList.contains('active')) return;
+
+            const diff = mobileTouchCurrentY - mobileTouchStartY;
+
+            if (diff > 100) {
+                // 下拉超过 100px，关闭预览
+                previewState.closePreview();
+            } else {
+                // 回弹
+                sidebar.style.transform = '';
+            }
+
+            mobileTouchStartY = 0;
+            mobileTouchCurrentY = 0;
         }
 
         function getMatchTypeLabel(matchType) {
