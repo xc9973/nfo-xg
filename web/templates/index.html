@@ -1983,6 +1983,8 @@
 
             if (newState.mode === 'sidebar' || newState.mode === 'modal') {
                 sidebar.classList.add('active');
+                sidebar.setAttribute('aria-hidden', 'false');
+
                 if (newState.isLoading) {
                     renderSidebarPreview(null);
                 } else if (newState.previewData) {
@@ -1996,6 +1998,7 @@
                 }
             } else {
                 sidebar.classList.remove('active');
+                sidebar.setAttribute('aria-hidden', 'true');
             }
         });
 
@@ -2109,6 +2112,37 @@
             mobileTouchStartY = 0;
             mobileTouchCurrentY = 0;
         }
+
+        // ========== 可访问性支持 ==========
+
+        // 键盘导航
+        document.addEventListener('keydown', (e) => {
+            const sidebar = document.getElementById('previewSidebar');
+            const isActive = sidebar.classList.contains('active');
+
+            if (!isActive) return;
+
+            switch(e.key) {
+                case 'Escape':
+                    previewState.closePreview();
+                    break;
+            }
+        });
+
+        // 为预览按钮添加 ARIA 标签
+        function enhancePreviewAccessibility() {
+            document.querySelectorAll('.search-result-preview-btn').forEach(btn => {
+                btn.setAttribute('aria-label', '预览此文件');
+                btn.setAttribute('role', 'button');
+            });
+        }
+
+        // 在渲染搜索结果后调用
+        const originalRenderSearchResults = renderSearchResults;
+        renderSearchResults = function(results, truncated) {
+            originalRenderSearchResults.call(this, results, truncated);
+            enhancePreviewAccessibility();
+        };
 
         function getMatchTypeLabel(matchType) {
             const labels = {
@@ -2364,10 +2398,13 @@
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- 预览侧边栏 -->
-    <div id="previewSidebar" class="preview-sidebar">
+    <div id="previewSidebar" class="preview-sidebar"
+         role="region"
+         aria-label="NFO 文件预览"
+         aria-hidden="true">
         <div class="preview-sidebar-header">
             <h3 class="preview-sidebar-title">NFO 预览</h3>
-            <button class="preview-sidebar-close" onclick="previewState.closePreview()">×</button>
+            <button class="preview-sidebar-close" onclick="previewState.closePreview()" aria-label="关闭预览">×</button>
         </div>
         <div class="preview-sidebar-content" id="previewSidebarContent">
             <!-- 内容由 JavaScript 动态生成 -->
