@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFO 编辑器</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="file-browser">
+            <h3>📁 文件浏览</h3>
+            <div class="path-bar" id="currentPath">~</div>
+            <div class="search-section">
+                <div class="search-bar">
+                    <input type="text" id="searchInput" placeholder="搜索 NFO 文件..." onkeypress="if(event.key==='Enter')search()">
+                    <button class="btn btn-primary search-btn" onclick="search()">🔍</button>
+                    <button class="btn btn-secondary clear-btn" id="clearSearchBtn" onclick="clearSearch()" style="display:none">✕</button>
+                </div>
+                <div class="search-loading" id="searchLoading" style="display:none">
+                    <span class="spinner"></span> 搜索中...
+                </div>
+            </div>
+            <div class="search-results" id="searchResults" style="display:none"></div>
+            <div class="file-list" id="fileList"></div>
+            <div class="template-section">
+                <h4>📋 模板</h4>
+                <div id="templateList"></div>
+                <button class="btn btn-secondary" onclick="showTemplateModal()" style="width:100%;margin-top:5px">+ 新建模板</button>
+            </div>
+        </div>
+        
+        <div class="editor">
+            <h2>NFO 编辑器</h2>
+            <div id="editorContent">
+                <p style="color:#666">← 从左侧选择一个 .nfo 文件开始编辑</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFile = null;
+        let nfoData = null;
+
+        // Load directory
+        async function loadDir(path = '') {
+            try {
+                const res = await fetch('/api/list', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+                
+                document.getElementById('currentPath').textContent = data.current;
+                renderFileList(data);
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function renderFileList(data) {
+            const list = document.getElementById('fileList');
+            let html = '';
+            
+            if (data.parent) {
+                html += `<div class="file-item dir" onclick="loadDir('${data.parent}')">📁 ..</div>`;
+            }
+            
+            for (const item of data.items) {
+                if (item.is_dir) {
+                    html += `<div class="file-item dir" onclick="loadDir('${item.path}')">📁 ${item.name}</div>`;
+                } else if (item.is_nfo) {
+                    html += `<div class="file-item nfo" onclick="loadNfo('${item.path}')">📄 ${item.name}</div>`;
+                }
+            }
+            
+            list.innerHTML = html;
+        }
+
+        // Load NFO file
+        async function loadNfo(path) {
+            try {
+                const res = await fetch('/api/load', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+                
+                currentFile = path;
+                nfoData = data.data;
+                renderEditor();
+                showToast('加载成功', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function renderEditor() {
+            const d = nfoData;
+            document.getElementById('editorContent').innerHTML = `
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>类型</label>
+                        <select id="nfo_type">
+                            <option value="movie" ${d.nfo_type==='movie'?'selected':''}>电影</option>
+                            <option value="tvshow" ${d.nfo_type==='tvshow'?'selected':''}>剧集</option>
+                            <option value="episodedetails" ${d.nfo_type==='episodedetails'?'selected':''}>单集</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>标题</label>
+                        <div class="input-with-action">
+                            <input type="text" id="title" value="${esc(d.title)}">
+                            <button class="btn btn-primary btn-icon" onclick="openTMDBSearch()" title="从 TMDB 搜索">🔍</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>原标题</label>
+                        <input type="text" id="originaltitle" value="${esc(d.originaltitle)}">
+                    </div>
+                    <div class="form-group">
+                        <label>年份</label>
+                        <input type="text" id="year" value="${esc(d.year)}" placeholder="1900-2100">
+                    </div>
+                    <div class="form-group">
+                        <label>时长(分钟)</label>
+                        <input type="text" id="runtime" value="${esc(d.runtime)}">
+                    </div>
+                    <div class="form-group">
+                        <label>评分</label>
+                        <input type="text" id="rating" value="${esc(d.rating)}" placeholder="0-10">
+                    </div>
+                    <div class="form-group">
+                        <label>制片厂</label>
+                        <input type="text" id="studio" value="${esc(d.studio)}">
+                    </div>
+                    <div class="form-group">
+                        <label>季</label>
+                        <input type="text" id="season" value="${esc(d.season)}">
+                    </div>
+                    <div class="form-group">
+                        <label>集</label>
+                        <input type="text" id="episode" value="${esc(d.episode)}">
+                    </div>
+                    <div class="form-group">
+                        <label>播出日期</label>
+                        <input type="text" id="aired" value="${esc(d.aired)}" placeholder="YYYY-MM-DD">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>简介</label>
+                        <textarea id="plot">${esc(d.plot)}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>海报路径</label>
+                        <input type="text" id="poster" value="${esc(d.poster)}" placeholder="poster.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label>背景图路径</label>
+                        <input type="text" id="fanart" value="${esc(d.fanart)}" placeholder="fanart.jpg">
+                    </div>
+                    <div class="form-group full-width">
+                        <label>类型</label>
+                        <div class="list-editor" id="genresEditor"></div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>导演</label>
+                        <div class="list-editor" id="directorsEditor"></div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>演员</label>
+                        <div class="list-editor" id="actorsEditor"></div>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-primary" onclick="saveNfo()">💾 保存</button>
+                    <button class="btn btn-secondary" onclick="loadNfo(currentFile)">🔄 重新加载</button>
+                    <button class="btn btn-secondary" onclick="saveAsTemplate()">📋 存为模板</button>
+                </div>
+            `;
+            renderListEditor('genresEditor', d.genres, 'genres');
+            renderListEditor('directorsEditor', d.directors, 'directors');
+            renderActorsEditor();
+        }
+
+        function esc(s) {
+            return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function renderListEditor(containerId, items, field) {
+            const container = document.getElementById(containerId);
+            let html = '<div class="list-items">';
+            items.forEach((item, i) => {
+                html += `<span class="list-item">${esc(item)} <span class="remove" onclick="removeItem('${field}', ${i})">×</span></span>`;
+            });
+            html += '</div>';
+            html += `<div class="list-input">
+                <input type="text" id="${field}Input" placeholder="添加..." onkeypress="if(event.key==='Enter')addItem('${field}')">
+                <button class="btn btn-secondary" onclick="addItem('${field}')">+</button>
+            </div>`;
+            container.innerHTML = html;
+        }
+
+        function addItem(field) {
+            const input = document.getElementById(field + 'Input');
+            const val = input.value.trim();
+            if (val) {
+                nfoData[field].push(val);
+                input.value = '';
+                renderListEditor(field + 'Editor', nfoData[field], field);
+            }
+        }
+
+        function removeItem(field, index) {
+            nfoData[field].splice(index, 1);
+            renderListEditor(field + 'Editor', nfoData[field], field);
+        }
+
+        function renderActorsEditor() {
+            const container = document.getElementById('actorsEditor');
+            let html = '<div class="actors-list">';
+            nfoData.actors.forEach((actor, i) => {
+                html += `<div class="actor-item">
+                    <input type="text" value="${esc(actor.name)}" placeholder="姓名" onchange="updateActor(${i}, 'name', this.value)">
+                    <input type="text" value="${esc(actor.role)}" placeholder="角色" onchange="updateActor(${i}, 'role', this.value)">
+                    <button class="btn btn-secondary" onclick="removeActor(${i})">×</button>
+                </div>`;
+            });
+            html += '</div>';
+            html += `<div class="list-input" style="margin-top:10px">
+                <input type="text" id="actorNameInput" placeholder="演员姓名" style="flex:1">
+                <input type="text" id="actorRoleInput" placeholder="角色" style="flex:1">
+                <button class="btn btn-secondary" onclick="addActor()">+</button>
+            </div>`;
+            container.innerHTML = html;
+        }
+
+        function addActor() {
+            const name = document.getElementById('actorNameInput').value.trim();
+            const role = document.getElementById('actorRoleInput').value.trim();
+            if (name) {
+                nfoData.actors.push({name, role, thumb: '', order: nfoData.actors.length});
+                document.getElementById('actorNameInput').value = '';
+                document.getElementById('actorRoleInput').value = '';
+                renderActorsEditor();
+            }
+        }
+
+        function updateActor(index, field, value) {
+            nfoData.actors[index][field] = value;
+        }
+
+        function removeActor(index) {
+            nfoData.actors.splice(index, 1);
+            renderActorsEditor();
+        }
+
+        function collectData() {
+            return {
+                nfo_type: document.getElementById('nfo_type').value,
+                title: document.getElementById('title').value,
+                originaltitle: document.getElementById('originaltitle').value,
+                year: document.getElementById('year').value,
+                plot: document.getElementById('plot').value,
+                runtime: document.getElementById('runtime').value,
+                genres: nfoData.genres,
+                directors: nfoData.directors,
+                actors: nfoData.actors,
+                studio: document.getElementById('studio').value,
+                rating: document.getElementById('rating').value,
+                poster: document.getElementById('poster').value,
+                fanart: document.getElementById('fanart').value,
+                season: document.getElementById('season').value,
+                episode: document.getElementById('episode').value,
+                aired: document.getElementById('aired').value,
+            };
+        }
+
+        async function saveNfo() {
+            try {
+                const data = collectData();
+                const res = await fetch('/api/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: currentFile, data})
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.detail);
+                showToast('保存成功!', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function showToast(msg, type) {
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Init
+        loadDir('');
+        loadTemplates();
+
+        // 键盘事件
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeTMDBModal();
+            }
+        });
+
+        // ========== TMDB 搜索功能 ==========
+        let searchDebounceTimer = null;
+        const SEARCH_DEBOUNCE_MS = 300;
+
+        // 打开 TMDB 搜索模态框，预填当前标题并自动搜索
+        function openTMDBSearch() {
+            const modal = document.getElementById('tmdbModal');
+            const searchInput = document.getElementById('tmdbSearchInput');
+
+            // 预填当前标题作为搜索词
+            const currentTitle = document.getElementById('title')?.value || '';
+            searchInput.value = currentTitle;
+
+            // 清空之前的结果
+            document.getElementById('tmdbResults').innerHTML = '';
+            document.getElementById('tmdbError').style.display = 'none';
+
+            modal.classList.add('active');
+
+            // 如果有预填内容，自动搜索
+            if (currentTitle) {
+                // 先设置加载状态，避免空白闪烁
+                document.getElementById('tmdbLoading').style.display = 'flex';
+                searchTMDB();
+            } else {
+                searchInput.focus();
+            }
+        }
+
+        // 关闭 TMDB 搜索模态框
+        function closeTMDBModal() {
+            document.getElementById('tmdbModal').classList.remove('active');
+        }
+
+        // 处理模态框点击事件（背景点击关闭）
+        function handleModalClick(event) {
+            if (event.target.id === 'tmdbModal') {
+                closeTMDBModal();
+            }
+        }
+
+        // 执行 TMDB 搜索请求
+        async function searchTMDB() {
+            // 清除之前的防抖计时器
+            if (searchDebounceTimer) {
+                clearTimeout(searchDebounceTimer);
+            }
+
+            const query = document.getElementById('tmdbSearchInput').value.trim();
+
+            if (!query) {
+                showToast('请输入搜索关键词', 'error');
+                return;
+            }
+
+            // 验证查询长度
+            if (query.length > 200) {
+                showToast('搜索关键词过长（最多200字符）', 'error');
+                return;
+            }
+
+            const loading = document.getElementById('tmdbLoading');
+            const errorDiv = document.getElementById('tmdbError');
+            const resultsDiv = document.getElementById('tmdbResults');
+
+            // UI 状态
+            loading.style.display = 'flex';
+            errorDiv.style.display = 'none';
+            resultsDiv.innerHTML = '';
+
+            // 防抖：300ms 后执行搜索
+            searchDebounceTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/tmdb/search?q=${encodeURIComponent(query)}`);
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                        // 映射错误消息
+                        let errorMsg = '搜索失败，请稍后重试';
+                        if (res.status === 401) {
+                            errorMsg = 'TMDB API Key 未配置或无效，请联系管理员';
+                        } else if (res.status === 429) {
+                            errorMsg = '搜索过于频繁，请稍后再试';
+                        } else if (data.detail) {
+                            errorMsg = data.detail;
+                        }
+                        throw new Error(errorMsg);
+                    }
+
+                    renderTMDBResults(data.results);
+                } catch (e) {
+                    errorDiv.textContent = e.message;
+                    errorDiv.style.display = 'block';
+                } finally {
+                    loading.style.display = 'none';
+                }
+            }, SEARCH_DEBOUNCE_MS);
+        }
+
+        // 渲染 TMDB 搜索结果卡片
+        function renderTMDBResults(results) {
+            const container = document.getElementById('tmdbResults');
+
+            if (results.length === 0) {
+                container.innerHTML = '<div class="tmdb-no-results">未找到匹配结果</div>';
+                return;
+            }
+
+            // 过滤只显示电影和电视剧
+            const filteredResults = results.filter(item =>
+                item.media_type === 'movie' || item.media_type === 'tv'
+            );
+
+            if (filteredResults.length === 0) {
+                container.innerHTML = '<div class="tmdb-no-results">未找到匹配的电影或剧集</div>';
+                return;
+            }
+
+            let html = '<div class="tmdb-results-grid">';
+            for (const item of filteredResults) {
+                const posterUrl = item.poster_url
+                    ? item.poster_url
+                    : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300" viewBox="0 0 200 300"><rect fill="%232a2a4a" width="200" height="300"/><text fill="%23666" x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="24">🎬</text></svg>';
+                const year = item.year || '未知';
+                const typeLabel = item.media_type === 'movie' ? '电影' : '剧集';
+
+                html += `
+                    <div class="tmdb-result-card" onclick="selectTMDBResult(${item.id}, '${item.media_type}')">
+                        <div class="tmdb-poster">
+                            <img src="${posterUrl}" alt="${esc(item.title)}" loading="lazy">
+                        </div>
+                        <div class="tmdb-info">
+                            <span class="tmdb-type">${typeLabel}</span>
+                            <div class="tmdb-title">${esc(item.title)}</div>
+                            <div class="tmdb-year">${year}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // 选择 TMDB 结果并获取详情
+        async function selectTMDBResult(tmdbId, mediaType) {
+            const loading = document.getElementById('tmdbLoading');
+            const errorDiv = document.getElementById('tmdbError');
+
+            loading.style.display = 'flex';
+            errorDiv.style.display = 'none';
+
+            try {
+                let endpoint;
+                if (mediaType === 'movie') {
+                    endpoint = `/api/tmdb/movie/${tmdbId}`;
+                } else {
+                    endpoint = `/api/tmdb/tv/${tmdbId}`;
+                }
+
+                const res = await fetch(endpoint);
+                const nfoDataResult = await res.json();
+
+                if (!res.ok) {
+                    // 映射错误消息
+                    let errorMsg = '获取详情失败，请稍后重试';
+                    if (res.status === 401) {
+                        errorMsg = 'TMDB API Key 未配置或无效，请联系管理员';
+                    } else if (res.status === 404) {
+                        errorMsg = '未找到该内容的详细信息';
+                    } else if (res.status === 429) {
+                        errorMsg = '请求过于频繁，请稍后再试';
+                    } else if (nfoDataResult.detail) {
+                        errorMsg = nfoDataResult.detail;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // 填充表单
+                applyTMDBData(nfoDataResult);
+
+                // 关闭模态框（仅在成功时）
+                closeTMDBModal();
+                showToast('已从 TMDB 获取数据', 'success');
+            } catch (e) {
+                errorDiv.textContent = e.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        // 将 TMDB 数据应用到 NFO 表单
+        function applyTMDBData(data) {
+            if (!nfoData) {
+                showToast('请先加载或创建 NFO 文件', 'error');
+                return;
+            }
+
+            // 更新 nfoData 对象
+            nfoData.nfo_type = data.nfo_type || nfoData.nfo_type;
+            nfoData.title = data.title || '';
+            nfoData.originaltitle = data.originaltitle || '';
+            nfoData.year = data.year || '';
+            nfoData.plot = data.plot || '';
+            nfoData.runtime = data.runtime || '';
+            nfoData.rating = data.rating || '';
+            nfoData.genres = data.genres || [];
+            nfoData.directors = data.directors || [];
+            nfoData.actors = data.actors || [];
+            nfoData.studio = data.studio || '';
+            nfoData.poster = data.poster || '';
+            nfoData.fanart = data.fanart || '';
+            nfoData.season = data.season || '';
+            nfoData.episode = data.episode || '';
+            nfoData.aired = data.aired || '';
+
+            // 重新渲染表单
+            renderEditor();
+        }
+
+        // ========== 搜索功能 ==========
+        let searchResults = [];
+        let selectedSearchResult = null;
+
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+            
+            // 如果搜索框为空，清除搜索结果
+            if (!query) {
+                clearSearch();
+                return;
+            }
+            
+            const currentPath = document.getElementById('currentPath').textContent;
+            
+            // 显示加载状态
+            document.getElementById('searchLoading').style.display = 'flex';
+            document.getElementById('clearSearchBtn').style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        query: query,
+                        path: currentPath === '~' ? '' : currentPath,
+                        max_depth: 5,
+                        max_results: 50
+                    })
+                });
+                const data = await res.json();
+                
+                if (!res.ok) {
+                    throw new Error(data.detail || '搜索失败');
+                }
+                
+                searchResults = data.results;
+                renderSearchResults(data.results, data.truncated);
+                
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                document.getElementById('searchLoading').style.display = 'none';
+            }
+        }
+
+        function renderSearchResults(results, truncated) {
+            const container = document.getElementById('searchResults');
+            const fileList = document.getElementById('fileList');
+            
+            // 显示搜索结果区域，隐藏文件列表
+            container.style.display = 'block';
+            fileList.style.display = 'none';
+            document.getElementById('clearSearchBtn').style.display = 'inline-block';
+            
+            if (results.length === 0) {
+                container.innerHTML = '<div class="search-no-results">未找到匹配的文件</div>';
+                return;
+            }
+            
+            let html = `
+                <div class="search-results-header">
+                    <span>搜索结果</span>
+                    <span class="search-results-count">${results.length} 个文件</span>
+                </div>
+            `;
+            
+            if (truncated) {
+                html += '<div class="search-truncated">⚠️ 结果可能不完整，已达到最大数量限制</div>';
+            }
+            
+            for (const item of results) {
+                const isSelected = selectedSearchResult === item.path ? 'selected' : '';
+                const matchTypeLabel = getMatchTypeLabel(item.match_type);
+                
+                html += `
+                    <div class="search-result-item ${isSelected}" onclick="selectSearchResult('${esc(item.path)}')">
+                        <div class="search-result-filename">📄 ${esc(item.filename)}</div>
+                        <div class="search-result-path">${esc(item.path)}</div>
+                        <span class="search-result-match">${matchTypeLabel}</span>
+                        ${item.title ? `<div class="search-result-title">${esc(item.title)}</div>` : ''}
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function getMatchTypeLabel(matchType) {
+            const labels = {
+                'filename': '文件名',
+                'title': '标题',
+                'originaltitle': '原标题',
+                'actor': '演员',
+                'plot': '简介'
+            };
+            return labels[matchType] || matchType;
+        }
+
+        async function selectSearchResult(path) {
+            selectedSearchResult = path;
+            
+            // 更新选中状态
+            const items = document.querySelectorAll('.search-result-item');
+            items.forEach(item => {
+                if (item.onclick.toString().includes(path)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+            
+            // 加载 NFO 文件
+            await loadNfo(path);
+            
+            // 导航到文件所在目录
+            const parentDir = path.substring(0, path.lastIndexOf('/')) || path.substring(0, path.lastIndexOf('\\'));
+            if (parentDir) {
+                document.getElementById('currentPath').textContent = parentDir;
+            }
+        }
+
+        function clearSearch() {
+            const container = document.getElementById('searchResults');
+            const fileList = document.getElementById('fileList');
+            
+            // 隐藏搜索结果，显示文件列表
+            container.style.display = 'none';
+            fileList.style.display = 'block';
+            document.getElementById('clearSearchBtn').style.display = 'none';
+            document.getElementById('searchInput').value = '';
+            
+            searchResults = [];
+            selectedSearchResult = null;
+            
+            // 重新加载当前目录
+            const currentPath = document.getElementById('currentPath').textContent;
+            loadDir(currentPath === '~' ? '' : currentPath);
+        }
+
+        // ========== 模板功能 ==========
+        let templates = [];
+
+        async function loadTemplates() {
+            try {
+                const res = await fetch('/api/templates');
+                const data = await res.json();
+                templates = data.templates || [];
+                renderTemplates();
+            } catch (e) {
+                console.error('加载模板失败', e);
+            }
+        }
+
+        function renderTemplates() {
+            const list = document.getElementById('templateList');
+            if (templates.length === 0) {
+                list.innerHTML = '<div style="color:#666;font-size:12px;padding:5px">暂无模板</div>';
+                return;
+            }
+            list.innerHTML = templates.map(t => `
+                <div class="template-item">
+                    <span onclick="applyTemplate('${esc(t.name)}')">${esc(t.name)}</span>
+                    <span class="remove" onclick="deleteTemplate('${esc(t.name)}')">×</span>
+                </div>
+            `).join('');
+        }
+
+        function applyTemplate(name) {
+            const t = templates.find(x => x.name === name);
+            if (!t || !nfoData) return;
+            
+            nfoData.nfo_type = t.nfo_type || nfoData.nfo_type;
+            nfoData.genres = [...(t.genres || [])];
+            nfoData.directors = [...(t.directors || [])];
+            nfoData.studio = t.studio || nfoData.studio;
+            
+            renderEditor();
+            showToast('已应用模板: ' + name, 'success');
+        }
+
+        async function deleteTemplate(name) {
+            if (!confirm('确定删除模板 "' + name + '"?')) return;
+            try {
+                const res = await fetch('/api/templates/' + encodeURIComponent(name), {method: 'DELETE'});
+                if (!res.ok) throw new Error('删除失败');
+                await loadTemplates();
+                showToast('模板已删除', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function saveAsTemplate() {
+            const name = prompt('请输入模板名称:');
+            if (!name) return;
+            
+            const data = {
+                name,
+                nfo_type: document.getElementById('nfo_type').value,
+                genres: nfoData.genres,
+                directors: nfoData.directors,
+                studio: document.getElementById('studio').value,
+            };
+            
+            try {
+                const res = await fetch('/api/templates', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) throw new Error('保存失败');
+                await loadTemplates();
+                showToast('模板已保存', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function showTemplateModal() {
+            if (!nfoData) {
+                showToast('请先打开一个 NFO 文件', 'error');
+                return;
+            }
+            saveAsTemplate();
+        }
+    </script>
+
+    <!-- TMDB 搜索模态框 -->
+    <div id="tmdbModal" class="modal" onclick="handleModalClick(event)">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🎬 搜索 TMDB</h3>
+                <button class="modal-close" onclick="closeTMDBModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="tmdb-search-bar">
+                    <input type="text" id="tmdbSearchInput" placeholder="输入电影或剧集名称..."
+                        onkeypress="if(event.key==='Enter')searchTMDB()">
+                    <button class="btn btn-primary" onclick="searchTMDB()">搜索</button>
+                </div>
+                <div id="tmdbLoading" class="tmdb-loading" style="display:none">
+                    <span class="spinner"></span> 搜索中...
+                </div>
+                <div id="tmdbError" class="tmdb-error" style="display:none"></div>
+                <div id="tmdbResults" class="tmdb-results"></div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# file: /Users/duola/Downloads/nfo-xg/nfo_editor/batch/models.py
+# hypothesis_version: 6.150.2
+
+[0.0, 100, 'append', 'completed', 'director', 'failed', 'field', 'genre', 'mode', 'overwrite', 'pending', 'running', 'studio']

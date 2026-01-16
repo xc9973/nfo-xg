@@ -1,0 +1,4 @@
+# file: /Users/duola/Downloads/nfo-xg/nfo_editor/utils/xml_parser.py
+# hypothesis_version: 6.150.2
+
+['actor', 'aired', 'director', 'episode', 'fanart', 'genre', 'latin-1', 'name', 'order', 'originaltitle', 'plot', 'poster', 'rating', 'role', 'runtime', 'season', 'studio', 'thumb', 'title', 'unicode', 'utf-8', 'year']

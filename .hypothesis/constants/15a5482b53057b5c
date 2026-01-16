@@ -1,0 +1,4 @@
+# file: /Users/duola/Downloads/nfo-xg/nfo_editor/services/tmdb_client.py
+# hypothesis_version: 6.150.2
+
+[401, 404, 429, '/search/multi', 'Invalid TMDB API Key', 'TMDB_API_KEY', 'api_key', 'append_to_response', 'credits,images', 'include_adult', 'language', 'original', 'page', 'query', 'zh-CN,en-US']

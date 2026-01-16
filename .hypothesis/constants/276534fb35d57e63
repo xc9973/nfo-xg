@@ -1,0 +1,4 @@
+# file: /Users/duola/Downloads/nfo-xg/nfo_editor/services/tmdb_mapper.py
+# hypothesis_version: 6.150.2
+
+['-', 'Director', 'air_date', 'backdrop_path', 'cast', 'character', 'credits', 'crew', 'episode_number', 'episode_run_time', 'first_air_date', 'genres', 'job', 'name', 'original_name', 'original_title', 'overview', 'poster_path', 'production_companies', 'profile_path', 'release_date', 'runtime', 'season_number', 'still_path', 'title', 'vote_average', 'w200']

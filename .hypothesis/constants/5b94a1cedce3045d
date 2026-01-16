@@ -1,0 +1,4 @@
+# file: /Users/duola/Downloads/nfo-xg/web/app.py
+# hypothesis_version: 6.150.2
+
+[100, 400, 403, 404, 500, 1111, '.', '...', '.nfo', '/', '/api/list', '/api/load', '/api/save', '/api/search', '/api/templates', '/api/validate', '/static', '0.0.0.0', '1.0.0', '; ', 'Basic', 'NFO Editor', 'NFO_PASSWORD', 'WWW-Authenticate', '__main__', 'actor', 'actors', 'aired', 'current', 'data', 'directors', 'episode', 'errors', 'fanart', 'field', 'filename', 'genres', 'index.html', 'is_dir', 'is_nfo', 'is_valid', 'items', 'message', 'movie', 'name', 'nfo_type', 'originaltitle', 'parent', 'path', 'plot', 'poster', 'rating', 'request', 'results', 'runtime', 'season', 'static', 'studio', 'success', 'template', 'templates', 'templates.json', 'title', 'truncated', 'year', '~', '不是目录', '保存成功', '密码错误', '无权限访问', '模板不存在', '模板已保存', '模板已删除', '目录不存在']
