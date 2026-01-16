@@ -742,8 +742,88 @@
         }
 
         // 批量保存
-        function batchSave() {
-            showToast('批量保存功能即将实现', 'info');
+        async function batchSave() {
+            if (selectedFiles.size === 0) {
+                showToast('请先选择文件', 'warning');
+                return;
+            }
+
+            // 输入要更新的字段
+            const field = prompt('要批量更新哪个字段？\n(例: studio, year, rating, director)');
+
+            if (!field) return;
+
+            const value = prompt(`输入 ${field} 的新值:`);
+            if (value === null) return;
+
+            // 确认操作
+            if (!confirm(`确定要将 ${selectedFiles.size} 个文件的 ${field} 更新为 "${value}"？`)) {
+                return;
+            }
+
+            // 初始化状态
+            batchTMDBState = {
+                active: true,
+                total: selectedFiles.size,
+                completed: 0,
+                failed: 0,
+                results: []
+            };
+
+            showBatchProgress();
+
+            // 逐个处理
+            const files = Array.from(selectedFiles);
+            for (const filePath of files) {
+                try {
+                    // 加载文件
+                    updateBatchProgress(`加载: ${filePath.split('/').pop()}`);
+                    const loadRes = await fetch('/api/load', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({path: filePath})
+                    });
+                    const loadData = await loadRes.json();
+
+                    if (!loadRes.ok) throw new Error(loadData.detail);
+
+                    // 更新字段
+                    loadData.data[field] = value;
+
+                    // 保存文件
+                    updateBatchProgress(`保存: ${filePath.split('/').pop()}`);
+                    const saveRes = await fetch('/api/save', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            path: filePath,
+                            data: loadData.data
+                        })
+                    });
+
+                    if (!saveRes.ok) throw new Error('保存失败');
+
+                    batchTMDBState.completed++;
+
+                } catch (e) {
+                    batchTMDBState.failed++;
+                    batchTMDBState.results.push({
+                        file: filePath,
+                        success: false,
+                        error: e.message
+                    });
+                }
+
+                updateBatchProgress();
+            }
+
+            batchTMDBState.active = false;
+            showBatchComplete();
+
+            // 记录历史
+            addHistory(`批量更新 ${field}: ${batchTMDBState.completed}/${batchTMDBState.total} 成功`, 'batch');
+
+            exitBatchMode();
         }
 
         // 显示批量进度
