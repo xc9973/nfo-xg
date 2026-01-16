@@ -4,10 +4,14 @@ import sys
 import secrets
 import uuid
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 from dataclasses import asdict
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Request, Depends, status
 from fastapi.staticfiles import StaticFiles
@@ -15,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.background import BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -237,29 +241,20 @@ class TmdbConfigRequest(BaseModel):
 
 class PreviewRequest(BaseModel):
     """预览请求模型 - 支持批量预览"""
-    paths: List[str]
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "paths": ["/path/to/movie.nfo", "/path/to/tvshow.nfo"]
             }
         }
+    )
+    paths: List[str]
 
 
 class PreviewData(BaseModel):
     """预览数据模型 - 只包含核心字段"""
-    title: str = ""
-    originaltitle: str = ""
-    year: str = ""
-    rating: str = ""
-    type: str = "movie"
-    genres: List[str] = []
-    runtime: str = ""
-    poster: str = ""
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "title": "盗梦空间",
                 "originaltitle": "Inception",
@@ -271,6 +266,15 @@ class PreviewData(BaseModel):
                 "poster": "poster.jpg"
             }
         }
+    )
+    title: str = ""
+    originaltitle: str = ""
+    year: str = ""
+    rating: str = ""
+    type: str = "movie"
+    genres: List[str] = []
+    runtime: str = ""
+    poster: str = ""
 
 
 class PreviewResultItem(BaseModel):
@@ -952,6 +956,42 @@ async def get_recent(auth: bool = Depends(check_auth)):
 
 # ========== 预览 API ==========
 
+def validate_path(path_str: str) -> tuple[bool, str]:
+    """验证路径安全性
+
+    防止路径遍历攻击和非法路径访问。
+
+    Args:
+        path_str: 要验证的路径字符串
+
+    Returns:
+        (is_valid, error_message) 元组
+    """
+    # 检查是否包含父目录引用
+    if '..' in path_str or path_str.startswith('~'):
+        logger.warning(f"Path traversal attempt detected: {path_str}")
+        return False, "非法路径"
+
+    # 检查路径是否为绝对路径（可选，根据需求调整）
+    # 如果只允许特定目录，可以在这里添加检查
+
+    try:
+        path = Path(path_str)
+        # 检查路径是否存在
+        if not path.exists():
+            return False, "文件不存在"
+        # 检查是否为文件
+        if not path.is_file():
+            return False, "不是有效的文件"
+        # 检查文件扩展名
+        if path.suffix.lower() != '.nfo':
+            return False, "不支持的文件类型"
+        return True, ""
+    except (OSError, ValueError) as e:
+        logger.error(f"Path validation error for {path_str}: {e}")
+        return False, "路径格式错误"
+
+
 @app.post("/api/preview")
 async def preview_nfo_files(req: PreviewRequest, auth: bool = Depends(check_auth)):
     """批量获取 NFO 文件的预览数据（轻量级）
@@ -968,6 +1008,16 @@ async def preview_nfo_files(req: PreviewRequest, auth: bool = Depends(check_auth
 
     for path_str in req.paths:
         try:
+            # 验证路径安全性
+            is_valid, error_msg = validate_path(path_str)
+            if not is_valid:
+                results.append(PreviewResultItem(
+                    path=path_str,
+                    success=False,
+                    error=error_msg
+                ))
+                continue
+
             # 使用现有的 parser 解析文件
             data = parser.parse(path_str)
 
@@ -990,22 +1040,25 @@ async def preview_nfo_files(req: PreviewRequest, auth: bool = Depends(check_auth
             ))
 
         except FileError as e:
+            logger.warning(f"File error for {path_str}: {e}")
             results.append(PreviewResultItem(
                 path=path_str,
                 success=False,
-                error=str(e)
+                error="文件访问失败"
             ))
         except ParseError as e:
+            logger.warning(f"Parse error for {path_str}: {e}")
             results.append(PreviewResultItem(
                 path=path_str,
                 success=False,
-                error=f"解析错误: {str(e)}"
+                error="文件格式错误"
             ))
         except Exception as e:
+            logger.error(f"Unexpected error for {path_str}: {e}")
             results.append(PreviewResultItem(
                 path=path_str,
                 success=False,
-                error=f"未知错误: {str(e)}"
+                error="系统错误，请稍后重试"
             ))
 
     return PreviewResponse(results=results)
