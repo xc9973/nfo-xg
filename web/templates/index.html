@@ -629,6 +629,7 @@
                 currentFile = path;
                 nfoData = data.data;
                 renderEditor();
+                isCreatingFromTmdb = false; // 加载已有文件后重置 TMDB 新建状态
                 setModified(false); // 加载新文件后清除修改标记
                 showToast('加载成功', 'success');
 
