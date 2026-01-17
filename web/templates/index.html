@@ -1423,8 +1423,31 @@
 
         // 填充表单数据（Task 5 实现）
         function populateForm(data) {
-            // TODO: Task 5 - will implement form population
-            console.log('TMDB data received:', data);
+            // 更新 nfoData 对象
+            nfoData.nfo_type = data.nfo_type || 'movie';
+            nfoData.title = data.title || '';
+            nfoData.originaltitle = data.originaltitle || '';
+            nfoData.year = data.year || '';
+            nfoData.plot = data.plot || '';
+            nfoData.runtime = data.runtime || '';
+            nfoData.studio = data.studio || '';
+            nfoData.rating = data.rating || '';
+            nfoData.poster = data.poster || '';
+            nfoData.fanart = data.fanart || '';
+            nfoData.season = data.season || '';
+            nfoData.episode = data.episode || '';
+            nfoData.aired = data.aired || '';
+            nfoData.genres = data.genres || [];
+            nfoData.directors = data.directors || [];
+            nfoData.actors = data.actors || [];
+
+            // 重新渲染编辑器以显示新数据
+            renderEditor();
+
+            // 标记为已修改
+            if (typeof setModified === 'function') {
+                setModified(true);
+            }
         }
 
         // 绑定 TMDB 按钮点击事件
