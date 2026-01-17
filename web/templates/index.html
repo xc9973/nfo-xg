@@ -124,6 +124,7 @@
     <script>
         let currentFile = null;
         let nfoData = null;
+        let isCreatingFromTmdb = false;
 
         // ========== 预览缓存系统 ==========
 
@@ -1353,6 +1354,82 @@
                 const isValid = /^\d+$/.test(value) && parseInt(value, 10) > 0;
                 fetchTmdbBtn.disabled = !isValid;
             });
+        }
+
+        // 显示 TMDB 状态消息
+        function showTmdbStatus(type, message) {
+            tmdbStatus.className = `tmdb-status ${type}`;
+            tmdbStatus.textContent = message || '';
+
+            // 3秒后清除成功消息
+            if (type === 'success') {
+                setTimeout(() => {
+                    if (tmdbStatus.className.includes('success')) {
+                        tmdbStatus.className = 'tmdb-status';
+                        tmdbStatus.textContent = '';
+                    }
+                }, 3000);
+            }
+        }
+
+        // 从 TMDB ID 获取数据
+        async function fetchFromTmdb() {
+            const tmdbId = parseInt(tmdbIdInput.value.trim());
+
+            if (!tmdbId || tmdbId <= 0) {
+                showTmdbStatus('error', '请输入有效的 TMDB ID');
+                return;
+            }
+
+            // 显示加载状态
+            showTmdbStatus('loading', '正在获取数据...');
+            fetchTmdbBtn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/tmdb/id/${tmdbId}?media_type=auto`);
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('请先配置 TMDB API Key');
+                    } else if (response.status === 404) {
+                        throw new Error('未找到该 TMDB ID 对应的内容');
+                    } else {
+                        throw new Error(`获取失败: ${response.status}`);
+                    }
+                }
+
+                const data = await response.json();
+
+                // 填充表单数据
+                populateForm(data);
+
+                // 设置新建模式状态
+                isCreatingFromTmdb = true;
+                currentFile = null;
+                document.getElementById('currentFile').textContent = '';
+
+                // 清除输入框和状态
+                tmdbIdInput.value = '';
+                showTmdbStatus('success', '数据获取成功！请编辑后保存');
+
+            } catch (error) {
+                showTmdbStatus('error', error.message);
+            } finally {
+                fetchTmdbBtn.disabled = false;
+                // 重新检查输入状态
+                tmdbIdInput.dispatchEvent(new Event('input'));
+            }
+        }
+
+        // 填充表单数据（Task 5 实现）
+        function populateForm(data) {
+            // TODO: Task 5 - will implement form population
+            console.log('TMDB data received:', data);
+        }
+
+        // 绑定 TMDB 按钮点击事件
+        if (fetchTmdbBtn) {
+            fetchTmdbBtn.addEventListener('click', fetchFromTmdb);
         }
 
         // 移动端滑动手势
