@@ -1801,3 +1801,87 @@ textarea {
 .preview-plot::-webkit-scrollbar-thumb:hover {
     background: #4a4a8a;
 }
+
+/* TMDB 快速创建区域 */
+.tmdb-quick-create {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.tmdb-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tmdb-id-input {
+    flex: 1;
+    min-width: 150px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.tmdb-id-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.tmdb-status {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    min-width: 200px;
+}
+
+.tmdb-status.loading {
+    color: #007bff;
+}
+
+.tmdb-status.success {
+    color: #28a745;
+}
+
+.tmdb-status.error {
+    color: #dc3545;
+}
+
+/* 加载动画 */
+.tmdb-status.loading::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: tmdb-spin 1s linear infinite;
+    margin-right: 6px;
+}
+
+@keyframes tmdb-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 移动端响应式 */
+@media (max-width: 768px) {
+    .tmdb-input-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .tmdb-id-input {
+        min-width: unset;
+    }
+
+    .tmdb-status {
+        min-width: unset;
+    }
+}
