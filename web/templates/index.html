@@ -892,8 +892,7 @@
             try {
                 // 新建模式：询问保存路径
                 if (isCreatingFromTmdb && !currentFile) {
-                    const data = collectData();
-                    const defaultName = `${data.title || 'movie'}.nfo`;
+                    const defaultName = `${nfoData.title || 'movie'}.nfo`;
                     const path = prompt('请输入保存路径:', `/Movies/${defaultName}`);
                     if (!path) {
                         saveBtn.classList.remove('loading');
