@@ -1436,8 +1436,8 @@
             } catch (error) {
                 showTmdbStatus('error', error.message);
             } finally {
-                fetchTmdbBtn.disabled = false;
-                // 重新检查输入状态
+                // 重新检查输入状态，让 input 事件监听器决定按钮最终状态
+                // 这样可以确保按钮状态始终与输入框验证状态保持一致
                 tmdbIdInput.dispatchEvent(new Event('input'));
             }
         }
@@ -1491,6 +1491,8 @@
             }
 
             // 重新渲染编辑器以显示新数据
+            // NOTE: 更新 nfoData 后调用 renderEditor()，而非直接操作 DOM
+            // 这样可以保持与现有模式的一致性，确保数据源单一
             renderEditor();
 
             // 标记为已修改
