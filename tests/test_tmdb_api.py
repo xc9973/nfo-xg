@@ -237,7 +237,7 @@ class TestTMDBConfigEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert "已更新" in data["message"]
+        assert "已保存" in data["message"]
 
     def test_config_with_empty_key(self):
         """空 API Key 也能更新（用户选择不使用 TMDB）"""
