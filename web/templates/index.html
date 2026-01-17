@@ -890,6 +890,20 @@
             const saveBtn = document.getElementById('saveBtn');
 
             try {
+                // 新建模式：询问保存路径
+                if (isCreatingFromTmdb && !currentFile) {
+                    const data = collectData();
+                    const defaultName = `${data.title || 'movie'}.nfo`;
+                    const path = prompt('请输入保存路径:', `/Movies/${defaultName}`);
+                    if (!path) {
+                        saveBtn.classList.remove('loading');
+                        return;
+                    }
+                    currentFile = path;
+                    isCreatingFromTmdb = false;
+                    document.getElementById('currentFile').textContent = currentFile;
+                }
+
                 // 设置加载状态
                 saveBtn.classList.add('loading');
 
