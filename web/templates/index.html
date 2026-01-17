@@ -61,7 +61,28 @@
                 <button class="btn btn-secondary" onclick="showTemplateModal()" style="width:100%;margin-top:5px">+ 新建模板</button>
             </div>
         </div>
-        
+
+        <!-- TMDB 快速创建区域 -->
+        <div class="tmdb-quick-create" id="tmdbQuickCreate">
+            <div class="tmdb-input-group">
+                <input
+                    type="number"
+                    id="tmdbIdInput"
+                    min="1"
+                    placeholder="输入 TMDB ID"
+                    class="tmdb-id-input"
+                />
+                <button
+                    id="fetchTmdbBtn"
+                    class="btn btn-primary"
+                    disabled
+                >
+                    获取数据
+                </button>
+                <div id="tmdbStatus" class="tmdb-status"></div>
+            </div>
+        </div>
+
         <div class="editor">
             <h2>
                 NFO 编辑器
