@@ -1368,6 +1368,13 @@
                 const isValid = /^\d+$/.test(value) && parseInt(value, 10) > 0;
                 fetchTmdbBtn.disabled = !isValid;
             });
+
+            // TMDB ID 输入框按 Enter 键触发获取
+            tmdbIdInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !fetchTmdbBtn.disabled) {
+                    fetchFromTmdb();
+                }
+            });
         }
 
         // 显示 TMDB 状态消息
