@@ -61,7 +61,28 @@
                 <button class="btn btn-secondary" onclick="showTemplateModal()" style="width:100%;margin-top:5px">+ 新建模板</button>
             </div>
         </div>
-        
+
+        <!-- TMDB 快速创建区域 -->
+        <div class="tmdb-quick-create" id="tmdbQuickCreate">
+            <div class="tmdb-input-group">
+                <input
+                    type="number"
+                    id="tmdbIdInput"
+                    min="1"
+                    placeholder="输入 TMDB ID"
+                    class="tmdb-id-input"
+                />
+                <button
+                    id="fetchTmdbBtn"
+                    class="btn btn-primary"
+                    disabled
+                >
+                    获取数据
+                </button>
+                <div id="tmdbStatus" class="tmdb-status"></div>
+            </div>
+        </div>
+
         <div class="editor">
             <h2>
                 NFO 编辑器
@@ -97,7 +118,7 @@
         </div>
     </div>
 
-    <!-- 隐藏的文件输入，用于快速打开单个 NFO -->
+    <!-- 隐藏的文件输入 -->
     <input type="file" id="nfoFileInput" accept=".nfo" style="display:none" onchange="handleNfoFileSelect(event)">
 
     <script>
@@ -569,20 +590,36 @@
             document.getElementById('nfoFileInput').click();
         }
 
-        // 处理 NFO 文件选择
+        // 处理文件选择
         async function handleNfoFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            // 注意：由于浏览器安全限制，无法直接读取用户选择的文件路径
-            // 这里需要用户手动输入文件路径，或者使用后端 API 处理
-            const path = prompt('已选择文件: ' + file.name + '\n\n请输入完整的文件路径:', file.name);
+            const loading = document.getElementById('editorLoading');
+            try {
+                loading.style.display = 'flex';
 
-            if (path && path.trim()) {
-                await loadNfo(path.trim());
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+
+                currentFile = null; // 上传的文件没有服务器路径
+                nfoData = data.data;
+                renderEditor();
+
+            } catch (err) {
+                showToast('错误: ' + err.message, 'error');
+            } finally {
+                loading.style.display = 'none';
             }
 
-            // 清空 input 以便可以再次选择同一文件
+            // 清空 input
             event.target.value = '';
         }
 
@@ -705,6 +742,10 @@
                         <label>演员</label>
                         <div class="list-editor" id="actorsEditor"></div>
                     </div>
+                    <div class="form-group full-width">
+                        <label>额外字段</label>
+                        <div id="extraTagsEditor" class="extra-tags-editor"></div>
+                    </div>
                 </div>
                 <div class="actions">
                     <button class="btn btn-primary" id="saveBtn" onclick="saveNfo()">
@@ -719,6 +760,7 @@
             renderListEditor('genresEditor', d.genres, 'genres');
             renderListEditor('directorsEditor', d.directors, 'directors');
             renderActorsEditor();
+            renderExtraTagsEditor();
 
             // 为所有输入框添加修改追踪
             document.querySelectorAll('#editorContent input, #editorContent textarea, #editorContent select').forEach(el => {
@@ -843,6 +885,79 @@
             renderActorsEditor();
         }
 
+        // 渲染额外字段编辑器
+        function renderExtraTagsEditor() {
+            const container = document.getElementById('extraTagsEditor');
+            if (!container) return;
+
+            const extra = nfoData.extra_tags || {};
+            let html = '<div class="extra-tags-list">';
+
+            // 显示已有字段
+            const entries = Object.entries(extra);
+            if (entries.length === 0) {
+                html += '<p style="color:#999; font-size:0.9em;">无额外字段</p>';
+            } else {
+                entries.forEach(([key, value]) => {
+                    const displayValue = typeof value === 'string' ? value : JSON.stringify(value);
+                    html += `
+                        <div class="extra-tag-item">
+                            <input type="text" class="extra-tag-key" value="${esc(key)}" placeholder="字段名" onchange="updateExtraTagKey('${esc(key)}', this.value)">
+                            <input type="text" class="extra-tag-value" value="${esc(displayValue)}" placeholder="字段值" onchange="updateExtraTagValue('${esc(key)}', this.value)">
+                            <button class="btn btn-secondary btn-small" onclick="removeExtraTag('${esc(key)}')">×</button>
+                        </div>
+                    `;
+                });
+            }
+
+            html += '</div>';
+            html += `<div class="extra-tags-add">
+                <input type="text" id="newExtraTagKey" placeholder="新字段名">
+                <input type="text" id="newExtraTagValue" placeholder="新字段值">
+                <button class="btn btn-secondary btn-small" onclick="addExtraTag()">+</button>
+            </div>`;
+
+            container.innerHTML = html;
+        }
+
+        function addExtraTag() {
+            const key = document.getElementById('newExtraTagKey').value.trim();
+            const value = document.getElementById('newExtraTagValue').value.trim();
+            if (key && value) {
+                if (!nfoData.extra_tags) nfoData.extra_tags = {};
+                nfoData.extra_tags[key] = value;
+                document.getElementById('newExtraTagKey').value = '';
+                document.getElementById('newExtraTagValue').value = '';
+                renderExtraTagsEditor();
+                setModified(true);
+            }
+        }
+
+        function updateExtraTagValue(key, value) {
+            if (nfoData.extra_tags && key in nfoData.extra_tags) {
+                nfoData.extra_tags[key] = value;
+                setModified(true);
+            }
+        }
+
+        function updateExtraTagKey(oldKey, newKey) {
+            if (nfoData.extra_tags && oldKey in nfoData.extra_tags && newKey) {
+                const value = nfoData.extra_tags[oldKey];
+                delete nfoData.extra_tags[oldKey];
+                nfoData.extra_tags[newKey] = value;
+                renderExtraTagsEditor();
+                setModified(true);
+            }
+        }
+
+        function removeExtraTag(key) {
+            if (nfoData.extra_tags && key in nfoData.extra_tags) {
+                delete nfoData.extra_tags[key];
+                renderExtraTagsEditor();
+                setModified(true);
+            }
+        }
+
         function collectData() {
             return {
                 nfo_type: document.getElementById('nfo_type').value,
@@ -861,11 +976,19 @@
                 season: document.getElementById('season').value,
                 episode: document.getElementById('episode').value,
                 aired: document.getElementById('aired').value,
+                extra_tags: nfoData.extra_tags || {},
             };
         }
 
         async function saveNfo() {
             const saveBtn = document.getElementById('saveBtn');
+
+            // 如果是上传的文件，需要指定保存路径
+            let savePath = currentFile;
+            if (!savePath) {
+                savePath = prompt('请输入保存路径:\n\n例如: /Volumes/Movies/movie.nfo');
+                if (!savePath) return;
+            }
 
             try {
                 // 设置加载状态
@@ -875,11 +998,14 @@
                 const res = await fetchWithCSRF('/api/save', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: currentFile, data})
+                    body: JSON.stringify({path: savePath, data})
                 });
                 const result = await res.json();
 
                 if (!res.ok) throw new Error(result.detail);
+
+                // 更新 currentFile（新上传的文件保存后有了路径）
+                currentFile = savePath;
 
                 // 设置成功状态
                 saveBtn.classList.remove('loading');
@@ -892,12 +1018,12 @@
                 }
 
                 // 清除预览缓存（文件已更新）
-                if (typeof previewState !== 'undefined' && currentFile) {
-                    previewState.invalidateCache(currentFile);
+                if (typeof previewState !== 'undefined' && savePath) {
+                    previewState.invalidateCache(savePath);
                 }
 
                 // 记录历史
-                addHistory(`保存: ${currentFile.split('/').pop()}`, 'save');
+                addHistory(`保存: ${savePath.split('/').pop()}`, 'save');
 
                 // 2秒后恢复按钮状态
                 setTimeout(() => {
@@ -1041,7 +1167,7 @@
 
                     // 搜索 TMDB
                     updateBatchProgress(`搜索: ${currentTitle}`);
-                    const searchRes = await fetch(`/api/tmdb/search?q=${encodeURIComponent(currentTitle)}`);
+                    const searchRes = await fetch(`/api/tmdb/search?query=${encodeURIComponent(currentTitle)}`);
                     const searchData = await searchRes.json();
 
                     if (!searchRes.ok) {
@@ -1532,7 +1658,7 @@
             // 防抖：300ms 后执行搜索
             searchDebounceTimer = setTimeout(async () => {
                 try {
-                    const res = await fetch(`/api/tmdb/search?q=${encodeURIComponent(query)}`);
+                    const res = await fetch(`/api/tmdb/search?query=${encodeURIComponent(query)}`);
                     const data = await res.json();
 
                     if (!res.ok) {
