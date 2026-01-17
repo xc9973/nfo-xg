@@ -1349,8 +1349,9 @@
         if (tmdbIdInput && fetchTmdbBtn) {
             tmdbIdInput.addEventListener('input', function() {
                 const value = this.value.trim();
-                // 只有当输入为正整数时才启用按钮
-                fetchTmdbBtn.disabled = !(value && parseInt(value) > 0);
+                // 验证正整数：非空、纯数字、大于0
+                const isValid = /^\d+$/.test(value) && parseInt(value, 10) > 0;
+                fetchTmdbBtn.disabled = !isValid;
             });
         }
 
