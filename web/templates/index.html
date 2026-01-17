@@ -893,7 +893,12 @@
             try {
                 // 新建模式：询问保存路径
                 if (isCreatingFromTmdb && !currentFile) {
-                    const defaultName = `${nfoData.title || 'movie'}.nfo`;
+                    let defaultName;
+                    if (nfoData && nfoData.nfo_type === 'tvshow') {
+                        defaultName = 'tvshow.nfo';
+                    } else {
+                        defaultName = `${nfoData.title || 'movie'}.nfo`;
+                    }
                     const path = prompt('请输入保存路径:', `/Movies/${defaultName}`);
                     if (!path) {
                         saveBtn.classList.remove('loading');
@@ -1431,7 +1436,11 @@
 
                 // 清除输入框和状态
                 tmdbIdInput.value = '';
-                showTmdbStatus('success', '数据获取成功！请编辑后保存');
+                if (nfoData && nfoData.nfo_type === 'tvshow') {
+                    showTmdbStatus('success', '检测到电视剧：已填充剧集信息（tvshow.nfo），单集需逐集生成 NFO');
+                } else {
+                    showTmdbStatus('success', '数据获取成功！请编辑后保存');
+                }
 
             } catch (error) {
                 showTmdbStatus('error', error.message);
