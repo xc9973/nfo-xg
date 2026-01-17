@@ -1370,8 +1370,8 @@
             });
 
             // TMDB ID 输入框按 Enter 键触发获取
-            tmdbIdInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !fetchTmdbBtn.disabled) {
+            tmdbIdInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !fetchTmdbBtn.disabled && e.target === document.activeElement) {
                     fetchFromTmdb();
                 }
             });
