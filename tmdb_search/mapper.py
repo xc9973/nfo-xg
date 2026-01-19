@@ -10,6 +10,14 @@ from tmdb_search.models import (
 )
 from tmdb_search.client import TMDBClient
 
+# Import NfoData for direct conversion
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from nfo_editor.models.nfo_model import Actor as NfoActor
+from nfo_editor.models.nfo_types import NfoType
+from nfo_editor.models.nfo_model import NfoData
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,3 +167,67 @@ class TMDBMapper:
             episode=str(tmdb_data.get("episode_number", "")),
             aired=tmdb_data.get("air_date", ""),
         )
+
+
+def tmdb_to_nfo(tmdb_data: Dict, media_type: str) -> NfoData:
+    """Convert TMDB API response to NfoData.
+
+    Args:
+        tmdb_data: TMDB API response data
+        media_type: Type of media ('movie' or 'tv')
+
+    Returns:
+        NfoData object
+    """
+    client = TMDBClient()
+    mapper = TMDBMapper(client)
+
+    if media_type == "movie":
+        tmdb_mapped = mapper.map_movie(tmdb_data)
+        return NfoData(
+            nfo_type=NfoType.MOVIE,
+            title=tmdb_mapped.title,
+            originaltitle=tmdb_mapped.original_title,
+            year=tmdb_mapped.year,
+            plot=tmdb_mapped.plot,
+            runtime=tmdb_mapped.runtime,
+            genres=tmdb_mapped.genres,
+            directors=tmdb_mapped.directors,
+            actors=[NfoActor(
+                name=a.name,
+                role=a.role,
+                thumb=a.thumb,
+                order=a.order
+            ) for a in tmdb_mapped.actors],
+            studio=tmdb_mapped.studio,
+            rating=tmdb_mapped.rating,
+            poster=tmdb_mapped.poster,
+            fanart=tmdb_mapped.fanart,
+            aired=tmdb_mapped.aired,
+        )
+    elif media_type == "tv":
+        tmdb_mapped = mapper.map_tv_show(tmdb_data)
+        return NfoData(
+            nfo_type=NfoType.TVSHOW,
+            title=tmdb_mapped.title,
+            originaltitle=tmdb_mapped.original_title,
+            year=tmdb_mapped.year,
+            plot=tmdb_mapped.plot,
+            runtime=tmdb_mapped.runtime,
+            genres=tmdb_mapped.genres,
+            directors=tmdb_mapped.directors,
+            actors=[NfoActor(
+                name=a.name,
+                role=a.role,
+                thumb=a.thumb,
+                order=a.order
+            ) for a in tmdb_mapped.actors],
+            studio=tmdb_mapped.studio,
+            rating=tmdb_mapped.rating,
+            poster=tmdb_mapped.poster,
+            fanart=tmdb_mapped.fanart,
+            aired=tmdb_mapped.aired,
+        )
+    else:
+        # Default to movie type
+        return NfoData(nfo_type=NfoType.MOVIE)
