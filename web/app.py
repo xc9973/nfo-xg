@@ -260,9 +260,16 @@ def update_file(file_id: str):
         # Get original data
         original_data = session_files[file_id]["original_data"]
 
+        # Parse nfo_type from string
+        nfo_type_str = update_data.get("nfo_type", "movie")
+        if isinstance(nfo_type_str, str):
+            nfo_type = NfoType(nfo_type_str)
+        else:
+            nfo_type = original_data.nfo_type
+
         # Create updated NfoData
         updated_data = NfoData(
-            nfo_type=original_data.nfo_type,
+            nfo_type=nfo_type,
             title=update_data.get("title", original_data.title),
             originaltitle=update_data.get("originaltitle", original_data.originaltitle),
             year=update_data.get("year", original_data.year),

@@ -282,12 +282,33 @@
     <div class="main-content">
         <!-- TMDB Search Section -->
         <div class="tmdb-section">
-            <h3>TMDB 搜索</h3>
+            <h3>TMDB 搜索 / ID 导入</h3>
             <div class="tmdb-input-group">
                 <input type="text" id="tmdbQuery" placeholder="搜索电影、剧集..." onkeypress="if(event.key==='Enter')searchTmdb()">
                 <button class="btn-tmdb" onclick="searchTmdb()">搜索</button>
             </div>
+            <div class="tmdb-input-group" style="margin-top: 12px;">
+                <input type="text" id="tmdbId" placeholder="TMDB ID (如: 12345)">
+                <select id="tmdbType" style="width: 120px; padding: 10px; border: 1px solid #3a3a5a; border-radius: 6px; background: #0f0f1a; color: #e8e8f0;">
+                    <option value="movie">电影</option>
+                    <option value="tv">剧集</option>
+                </select>
+                <button class="btn-tmdb" onclick="importById()">ID 导入</button>
+            </div>
             <div id="tmdbResults" class="tmdb-results"></div>
+        </div>
+
+        <!-- NFO Type Selection -->
+        <div class="form-section">
+            <h2>NFO 类型</h2>
+            <div class="form-group">
+                <label for="nfoType">选择输出类型</label>
+                <select id="nfoType" onchange="toggleNfoTypeFields()">
+                    <option value="movie">电影 (movie.nfo)</option>
+                    <option value="tvshow">剧集 (tvshow.nfo)</option>
+                    <option value="episode">单集 (episode.nfo)</option>
+                </select>
+            </div>
         </div>
 
         <!-- Basic Info Section -->
@@ -414,6 +435,11 @@
         }
 
         function populateForm(data) {
+            // Set NFO type
+            const nfoType = data.nfo_type || 'movie';
+            document.getElementById('nfoType').value = nfoType;
+            toggleNfoTypeFields();
+
             // Basic fields
             document.getElementById('title').value = data.title || '';
             document.getElementById('originaltitle').value = data.originaltitle || '';
@@ -551,7 +577,9 @@
 
         // Save data
         async function saveData() {
+            const nfoType = document.getElementById('nfoType').value;
             const data = {
+                nfo_type: nfoType,
                 title: document.getElementById('title').value,
                 originaltitle: document.getElementById('originaltitle').value,
                 year: document.getElementById('year').value ? parseInt(document.getElementById('year').value) : null,
@@ -663,6 +691,34 @@
                 }
             } catch (error) {
                 showToast('导入失败: ' + error.message, 'error');
+            }
+        }
+
+        async function importById() {
+            const tmdbId = document.getElementById('tmdbId').value.trim();
+            const mediaType = document.getElementById('tmdbType').value;
+
+            if (!tmdbId) {
+                showToast('请输入 TMDB ID', 'error');
+                return;
+            }
+
+            if (!/^\d+$/.test(tmdbId)) {
+                showToast('TMDB ID 必须是数字', 'error');
+                return;
+            }
+
+            await importFromTmdb(mediaType, tmdbId);
+        }
+
+        function toggleNfoTypeFields() {
+            const nfoType = document.getElementById('nfoType').value;
+            const tvShowFields = document.getElementById('tvShowFields');
+
+            if (nfoType === 'tvshow' || nfoType === 'episode') {
+                tvShowFields.classList.remove('hidden');
+            } else {
+                tvShowFields.classList.add('hidden');
             }
         }
 
