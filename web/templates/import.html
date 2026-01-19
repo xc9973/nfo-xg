@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TMDB 导入 - NFO 编辑器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/import.css') }}">
+</head>
+<body>
+    <div class="import-container">
+        <div class="import-card">
+            <h1>TMDB 导入</h1>
+
+            <!-- 进度条 -->
+            <div class="progress-bar">
+                <div class="step active" data-step="1">1.选择类型</div>
+                <div class="step" data-step="2">2.输入ID</div>
+                <div class="step" data-step="3">3.选季集</div>
+                <div class="step" data-step="4">4.确认</div>
+            </div>
+
+            <!-- 步骤 1: 选择类型 -->
+            <div class="step-content active" id="step1">
+                <h2>选择媒体类型</h2>
+                <div class="type-buttons">
+                    <button class="type-btn" data-type="movie">
+                        <span class="icon">🎬</span>
+                        <span class="label">电影</span>
+                    </button>
+                    <button class="type-btn" data-type="tv">
+                        <span class="icon">📺</span>
+                        <span class="label">电视剧</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 步骤 2: 输入 TMDB ID -->
+            <div class="step-content" id="step2">
+                <h2>输入 TMDB ID</h2>
+                <div class="input-group">
+                    <input type="number" id="tmdbIdInput" placeholder="例如: 12345" min="1">
+                    <button id="validateBtn">验证</button>
+                </div>
+                <div id="validateResult"></div>
+                <button id="step2Back" class="btn-secondary">返回</button>
+            </div>
+
+            <!-- 步骤 3: 选择季集（仅电视剧） -->
+            <div class="step-content" id="step3">
+                <h2>选择季集</h2>
+                <div class="season-options">
+                    <label>
+                        <input type="radio" name="importType" value="season" checked>
+                        导入整季信息
+                    </label>
+                    <label>
+                        <input type="radio" name="importType" value="episode">
+                        导入单集
+                    </label>
+                </div>
+                <div id="seasonList" class="season-list"></div>
+                <div id="episodeInputs" class="episode-inputs" style="display:none;">
+                    <label>季数: <input type="number" id="seasonNum" min="1"></label>
+                    <label>集数: <input type="number" id="episodeNum" min="1"></label>
+                </div>
+                <button id="step3Next" class="btn-primary">下一步</button>
+                <button id="step3Back" class="btn-secondary">返回</button>
+            </div>
+
+            <!-- 步骤 4: 确认导入 -->
+            <div class="step-content" id="step4">
+                <h2>确认导入</h2>
+                <div id="importSummary"></div>
+                <button id="confirmImport" class="btn-primary">确认导入</button>
+                <button id="step4Back" class="btn-secondary">返回</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/import.js') }}"></script>
+</body>
+</html>
