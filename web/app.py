@@ -559,6 +559,53 @@ def tmdb_search():
         return jsonify({"error": "搜索失败"}), 500
 
 
+@app.route("/api/tmdb/validate", methods=["POST"])
+def tmdb_validate():
+    """验证 TMDB ID 并返回预览信息."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+
+    try:
+        data = request.get_json()
+        tmdb_id = data.get("tmdb_id")
+        media_type = data.get("media_type")  # "movie" or "tv"
+
+        if not tmdb_id or not media_type:
+            return jsonify({"error": "缺少参数"}), 400
+
+        if not isinstance(tmdb_id, int) or tmdb_id <= 0:
+            return jsonify({"error": "无效的 TMDB ID"}), 400
+
+        # 获取详情用于预览
+        if media_type == "movie":
+            details = tmdb_client.get_movie_details(tmdb_id)
+            title = details.get("title", "")
+            year = details.get("release_date", "")[:4]
+            poster_path = details.get("poster_path")
+        else:  # tv
+            details = tmdb_client.get_tv_details(tmdb_id)
+            title = details.get("name", "")
+            year = details.get("first_air_date", "")[:4]
+            poster_path = details.get("poster_path")
+
+        poster = tmdb_client.get_image_url(poster_path, "w200")
+
+        return jsonify({
+            "valid": True,
+            "title": title,
+            "year": year,
+            "poster": poster,
+            "tmdb_id": tmdb_id,
+            "media_type": media_type
+        })
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"TMDB validate failed: {e}")
+        return jsonify({"error": "验证失败"}), 500
+
+
 @app.route("/api/tmdb/import/<media_type>/<path:tmdb_path>", methods=["GET"])
 def tmdb_import(media_type: str, tmdb_path: str):
     """Import data from TMDB.
