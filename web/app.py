@@ -582,15 +582,36 @@ def serialize_nfo_data(nfo_data: NfoData) -> dict:
     Returns:
         Serializable dictionary
     """
-    from dataclasses import asdict
-    data = asdict(nfo_data)
-    # Ensure nfo_type is string
-    if isinstance(data.get("nfo_type"), NfoType):
-        data["nfo_type"] = data["nfo_type"].value
-    # Serialize actors
-    if data.get("actors"):
-        data["actors"] = [asdict(a) for a in nfo_data.actors]
-    return data
+    # Convert nfo_type enum to string
+    nfo_type_value = nfo_data.nfo_type.value if isinstance(nfo_data.nfo_type, NfoType) else str(nfo_data.nfo_type)
+
+    return {
+        "nfo_type": nfo_type_value,
+        "title": nfo_data.title or "",
+        "originaltitle": nfo_data.originaltitle or "",
+        "year": nfo_data.year or "",
+        "plot": nfo_data.plot or "",
+        "runtime": nfo_data.runtime or "",
+        "genres": nfo_data.genres or [],
+        "directors": nfo_data.directors or [],
+        "actors": [
+            {
+                "name": a.name,
+                "role": a.role or "",
+                "thumb": a.thumb or "",
+                "order": a.order
+            }
+            for a in (nfo_data.actors or [])
+        ],
+        "studio": nfo_data.studio or "",
+        "rating": nfo_data.rating or "",
+        "poster": nfo_data.poster or "",
+        "fanart": nfo_data.fanart or "",
+        "season": nfo_data.season or "",
+        "episode": nfo_data.episode or "",
+        "aired": nfo_data.aired or "",
+        "extra_tags": nfo_data.extra_tags or {},
+    }
 
 
 def xml_generator(nfo_data: NfoData) -> str:
