@@ -779,6 +779,90 @@ def batch_import_episodes():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/tmdb/import/final", methods=["POST"])
+def tmdb_import_final():
+    """最终导入：存储到 session 并跳转到编辑页."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+
+    try:
+        data = request.get_json()
+        tmdb_id = data.get("tmdb_id")
+        media_type = data.get("media_type")  # "movie", "tv", "episode"
+        season = data.get("season")
+        episode = data.get("episode")
+
+        if not tmdb_id or not media_type:
+            return jsonify({"error": "缺少参数"}), 400
+
+        # 获取 NFO 数据
+        if media_type == "movie":
+            details = tmdb_client.get_movie_details(tmdb_id)
+            nfo_data = tmdb_to_nfo(details, "movie")
+        elif media_type == "tv":
+            details = tmdb_client.get_tv_details(tmdb_id)
+            nfo_data = tmdb_to_nfo(details, "tv")
+        elif media_type == "episode":
+            if not season or not episode:
+                return jsonify({"error": "缺少季数或集数"}), 400
+            details = tmdb_client.get_tv_episode_details(tmdb_id, season, episode)
+            from tmdb_search.models import TMDBEpisodeData
+            mapper = TMDBMapper(tmdb_client)
+            episode_data = mapper.map_episode(details)
+            nfo_data = NfoData(
+                nfo_type=NfoType.EPISODE,
+                title=episode_data.title,
+                originaltitle=episode_data.original_title,
+                year=episode_data.year,
+                plot=episode_data.plot,
+                runtime=episode_data.runtime,
+                genres=episode_data.genres,
+                directors=episode_data.directors,
+                actors=[Actor(**a.__dict__) for a in episode_data.actors],
+                studio=episode_data.studio,
+                rating=episode_data.rating,
+                poster=episode_data.poster,
+                fanart=episode_data.fanart,
+                season=episode_data.season,
+                episode=episode_data.episode,
+                aired=episode_data.aired,
+            )
+        else:
+            return jsonify({"error": "无效的媒体类型"}), 400
+
+        # 存储到 session，生成新文件 ID
+        session_files = session.get("files", {})
+        file_id = str(uuid.uuid4())
+
+        # 确定文件名
+        if media_type == "movie":
+            filename = secure_filename(f"{nfo_data.title or 'movie'}.nfo")
+        elif media_type == "tv":
+            filename = secure_filename("tvshow.nfo")
+        else:  # episode
+            filename = secure_filename(f"{nfo_data.title or 'episode'}.S{nfo_data.season}E{nfo_data.episode}.nfo")
+
+        session_files[file_id] = {
+            "name": filename,
+            "original_data": nfo_data,
+            "edited_data": None,
+            "modified_fields": [],
+            "upload_time": datetime.now().isoformat(),
+        }
+        session["files"] = session_files
+
+        return jsonify({
+            "success": True,
+            "file_id": file_id,
+            "filename": filename,
+            "redirect": f"/edit?file_id={file_id}"
+        })
+
+    except Exception as e:
+        logger.error(f"Final import failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # =============================================================================
 # Helpers
 # =============================================================================
