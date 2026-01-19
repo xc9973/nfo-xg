@@ -5,17 +5,19 @@ services:
     container_name: nfo-editor
     restart: unless-stopped
     ports:
-      - "8111:8111"
+      - "5000:5000"
     environment:
-      - TMDB_API_KEY=${TMDB_API_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-}
       - NFO_PASSWORD=${NFO_PASSWORD:-}
+      - SESSION_TIMEOUT=3600
+      - MAX_UPLOAD_SIZE=10485760
+      - MAX_FILES_PER_BATCH=50
+      - SESSION_FILE_DIR=/tmp/flask_session
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
     volumes:
-      # Mount media directory for NFO file access
-      - ${MEDIA_PATH:-./media}:/media:ro
-      # Persist templates
-      - ./data:/app/data
+      - ./flask_session:/tmp/flask_session
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8111/"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
       interval: 30s
       timeout: 10s
       retries: 3

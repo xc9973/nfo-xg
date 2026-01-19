@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -8,10 +8,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY nfo_editor/ ./nfo_editor/
+COPY tmdb_search/ ./tmdb_search/
 COPY web/ ./web/
 
-# Expose port
-EXPOSE 8111
+# Create session directory
+RUN mkdir -p /tmp/flask_session
 
-# Run
-CMD ["uvicorn", "web.app:app", "--host", "0.0.0.0", "--port", "8111"]
+# Expose port
+EXPOSE 5000
+
+# Run Flask with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "web.app:app"]

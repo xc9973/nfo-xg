@@ -6,6 +6,12 @@ jinja2>=3.1.0
 requests>=2.31.0
 tenacity>=8.2.0
 
+# Flask Web Application
+flask>=3.0.0
+flask-session>=0.8.0
+cachelib>=0.13.0
+gunicorn>=21.0.0
+
 # Testing
 pytest>=7.4.0
 hypothesis>=6.82.0
