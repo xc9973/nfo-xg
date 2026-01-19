@@ -1,4 +1,4 @@
-"""TMDB API Client for NFO Editor."""
+"""TMDB API Client for searching movies and TV shows."""
 import os
 from typing import List, Dict, Optional
 import logging

@@ -1,10 +1,9 @@
 """Tests for TMDB Mapper."""
 import pytest
 
-from nfo_editor.models.nfo_model import NfoData, Actor
-from nfo_editor.models.nfo_types import NfoType
-from nfo_editor.services.tmdb_client import TMDBClient
-from nfo_editor.services.tmdb_mapper import TMDBMapper
+from tmdb_search.models import Actor, TMDBMovieData, TMDBTVShowData, TMDBEpisodeData
+from tmdb_search.client import TMDBClient
+from tmdb_search.mapper import TMDBMapper
 
 
 class TestTMDBMapper:
@@ -57,10 +56,9 @@ class TestTMDBMapper:
 
         result = mapper.map_movie(tmdb_data)
 
-        assert isinstance(result, NfoData)
-        assert result.nfo_type == NfoType.MOVIE
+        assert isinstance(result, TMDBMovieData)
         assert result.title == "Fight Club"
-        assert result.originaltitle == "Fight Club"
+        assert result.original_title == "Fight Club"
         assert result.year == "1999"
         assert result.plot == "A ticking-time-bomb insomniac..."
         assert result.runtime == "139"
@@ -141,10 +139,9 @@ class TestTMDBMapper:
 
         result = mapper.map_tv_show(tmdb_data)
 
-        assert isinstance(result, NfoData)
-        assert result.nfo_type == NfoType.TVSHOW
+        assert isinstance(result, TMDBTVShowData)
         assert result.title == "Breaking Bad"
-        assert result.originaltitle == "Breaking Bad"
+        assert result.original_title == "Breaking Bad"
         assert result.year == "2008"
         assert result.runtime == "45"
         assert result.aired == "2008-01-20"
@@ -181,8 +178,7 @@ class TestTMDBMapper:
 
         result = mapper.map_episode(tmdb_data)
 
-        assert isinstance(result, NfoData)
-        assert result.nfo_type == NfoType.EPISODE
+        assert isinstance(result, TMDBEpisodeData)
         assert result.title == "Pilot"
         assert result.year == "2008"
         assert result.season == "1"

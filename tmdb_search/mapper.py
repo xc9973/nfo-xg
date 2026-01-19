@@ -1,10 +1,14 @@
-"""TMDB Data Mapper for NFO Editor."""
-from typing import Dict, List, Optional
+"""TMDB Data Mapper for converting API responses to data models."""
+from typing import Dict, List
 import logging
 
-from nfo_editor.models.nfo_model import NfoData, Actor
-from nfo_editor.models.nfo_types import NfoType
-from nfo_editor.services.tmdb_client import TMDBClient
+from tmdb_search.models import (
+    Actor,
+    TMDBMovieData,
+    TMDBTVShowData,
+    TMDBEpisodeData,
+)
+from tmdb_search.client import TMDBClient
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +24,7 @@ class TMDBMapper:
         """
         self.client = tmdb_client
 
-    def _get_year(self, date_str: Optional[str]) -> str:
+    def _get_year(self, date_str: str) -> str:
         """从日期字符串提取年份"""
         if not date_str:
             return ""
@@ -29,11 +33,11 @@ class TMDBMapper:
         except IndexError:
             return ""
 
-    def _get_runtime(self, runtime: Optional[int]) -> str:
+    def _get_runtime(self, runtime: int) -> str:
         """格式化运行时长"""
         return str(runtime) if runtime else ""
 
-    def _get_rating(self, vote_average: Optional[float]) -> str:
+    def _get_rating(self, vote_average: float) -> str:
         """格式化评分"""
         return f"{vote_average:.1f}" if vote_average else ""
 
@@ -71,21 +75,20 @@ class TMDBMapper:
             return ""
         return production_companies[0].get("name", "")
 
-    def map_movie(self, tmdb_data: Dict) -> NfoData:
+    def map_movie(self, tmdb_data: Dict) -> TMDBMovieData:
         """映射电影数据
 
         Args:
             tmdb_data: TMDB 电影详情数据
 
         Returns:
-            NfoData 对象
+            TMDBMovieData 对象
         """
         credits = tmdb_data.get("credits", {})
 
-        return NfoData(
-            nfo_type=NfoType.MOVIE,
+        return TMDBMovieData(
             title=tmdb_data.get("title", ""),
-            originaltitle=tmdb_data.get("original_title", ""),
+            original_title=tmdb_data.get("original_title", ""),
             year=self._get_year(tmdb_data.get("release_date")),
             plot=tmdb_data.get("overview", ""),
             runtime=self._get_runtime(tmdb_data.get("runtime")),
@@ -99,21 +102,20 @@ class TMDBMapper:
             aired=tmdb_data.get("release_date", ""),
         )
 
-    def map_tv_show(self, tmdb_data: Dict) -> NfoData:
+    def map_tv_show(self, tmdb_data: Dict) -> TMDBTVShowData:
         """映射电视剧数据
 
         Args:
             tmdb_data: TMDB 电视剧详情数据
 
         Returns:
-            NfoData 对象
+            TMDBTVShowData 对象
         """
         credits = tmdb_data.get("credits", {})
 
-        return NfoData(
-            nfo_type=NfoType.TVSHOW,
+        return TMDBTVShowData(
             title=tmdb_data.get("name", ""),
-            originaltitle=tmdb_data.get("original_name", ""),
+            original_title=tmdb_data.get("original_name", ""),
             year=self._get_year(tmdb_data.get("first_air_date")),
             plot=tmdb_data.get("overview", ""),
             runtime=self._get_runtime(
@@ -129,21 +131,20 @@ class TMDBMapper:
             aired=tmdb_data.get("first_air_date", ""),
         )
 
-    def map_episode(self, tmdb_data: Dict) -> NfoData:
+    def map_episode(self, tmdb_data: Dict) -> TMDBEpisodeData:
         """映射单集数据
 
         Args:
             tmdb_data: TMDB 单集详情数据
 
         Returns:
-            NfoData 对象
+            TMDBEpisodeData 对象
         """
         credits = tmdb_data.get("credits", {})
 
-        return NfoData(
-            nfo_type=NfoType.EPISODE,
+        return TMDBEpisodeData(
             title=tmdb_data.get("name", ""),
-            originaltitle=tmdb_data.get("name", ""),  # 单集通常没有独立的原标题
+            original_title=tmdb_data.get("name", ""),  # 单集通常没有独立的原标题
             year=self._get_year(tmdb_data.get("air_date")),
             plot=tmdb_data.get("overview", ""),
             runtime=self._get_runtime(tmdb_data.get("runtime")),

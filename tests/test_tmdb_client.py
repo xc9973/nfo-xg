@@ -3,7 +3,7 @@ import pytest
 import responses
 from requests.exceptions import HTTPError
 
-from nfo_editor.services.tmdb_client import TMDBClient
+from tmdb_search.client import TMDBClient
 
 
 class TestTMDBClient:
