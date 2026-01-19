@@ -35,7 +35,7 @@ from nfo_editor.utils.exceptions import ParseError, FileError
 from nfo_editor.batch import TaskManager, BatchPreviewRequest, BatchApplyRequest
 from nfo_editor.batch.processor import BatchProcessor
 from tmdb_search.client import TMDBClient
-from tmdb_search.mapper import tmdb_to_nfo
+from tmdb_search.mapper import tmdb_to_nfo, TMDBMapper
 
 logger = logging.getLogger(__name__)
 
@@ -551,28 +551,176 @@ def tmdb_search():
         return jsonify({"error": "搜索失败"}), 500
 
 
-@app.route("/api/tmdb/import/<media_type>/<int:tmdb_id>", methods=["GET"])
-def tmdb_import(media_type: str, tmdb_id: int):
-    """Import data from TMDB."""
+@app.route("/api/tmdb/import/<media_type>/<path:tmdb_path>", methods=["GET"])
+def tmdb_import(media_type: str, tmdb_path: str):
+    """Import data from TMDB.
+
+    Args:
+        media_type: Type of media (movie, tv, episode)
+        tmdb_path: TMDB ID or path (e.g., "12345" or "12345/1/5" for episode)
+    """
     if not check_auth():
         return jsonify({"error": "未授权"}), 401
 
     try:
         # Get details from TMDB
         if media_type == "movie":
+            tmdb_id = int(tmdb_path)
             details = tmdb_client.get_movie_details(tmdb_id)
+            nfo_data = tmdb_to_nfo(details, media_type)
         elif media_type == "tv":
+            tmdb_id = int(tmdb_path)
             details = tmdb_client.get_tv_details(tmdb_id)
+            nfo_data = tmdb_to_nfo(details, media_type)
+        elif media_type == "episode":
+            # tmdb_path format: tv_id/season/episode
+            parts = tmdb_path.split("/")
+            if len(parts) != 3:
+                return jsonify({"error": "无效的剧集路径"}), 400
+            tv_id, season, episode = int(parts[0]), int(parts[1]), int(parts[2])
+            details = tmdb_client.get_tv_episode_details(tv_id, season, episode)
+            # Map episode data to NFO
+            from tmdb_search.models import TMDBEpisodeData
+            mapper = TMDBMapper(tmdb_client)
+            episode_data = mapper.map_episode(details)
+            nfo_data = NfoData(
+                nfo_type=NfoType.EPISODE,
+                title=episode_data.title,
+                originaltitle=episode_data.original_title,
+                year=episode_data.year,
+                plot=episode_data.plot,
+                runtime=episode_data.runtime,
+                genres=episode_data.genres,
+                directors=episode_data.directors,
+                actors=[Actor(**a.__dict__) for a in episode_data.actors],
+                studio=episode_data.studio,
+                rating=episode_data.rating,
+                poster=episode_data.poster,
+                fanart=episode_data.fanart,
+                season=episode_data.season,
+                episode=episode_data.episode,
+                aired=episode_data.aired,
+            )
         else:
             return jsonify({"error": "无效的媒体类型"}), 400
-
-        # Convert to NFO format
-        nfo_data = tmdb_to_nfo(details, media_type)
 
         return jsonify(serialize_nfo_data(nfo_data))
 
     except Exception as e:
         logger.error(f"TMDB import failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tmdb/tv/<int:tmdb_id>", methods=["GET"])
+def get_tv_details(tmdb_id: int):
+    """Get TV show details with seasons list."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+    try:
+        details = tmdb_client.get_tv_details(tmdb_id)
+        seasons = details.get("seasons", [])
+        # Filter out special seasons (season_number > 0)
+        seasons = [s for s in seasons if s.get("season_number", 0) > 0]
+        return jsonify({"seasons": seasons})
+    except Exception as e:
+        logger.error(f"Failed to get TV details: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tmdb/tv/<int:tmdb_id>/season/<int:season_number>", methods=["GET"])
+def get_season_episodes(tmdb_id: int, season_number: int):
+    """Get episodes for a season."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+    try:
+        season_data = tmdb_client.get_tv_season_details(tmdb_id, season_number)
+        episodes = season_data.get("episodes", [])
+        return jsonify({"episodes": episodes})
+    except Exception as e:
+        logger.error(f"Failed to get season episodes: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tmdb/batch_import_episodes", methods=["POST"])
+def batch_import_episodes():
+    """Batch import multiple episodes and save to session."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+
+    try:
+        data = request.get_json()
+        tmdb_id = data.get("tmdb_id")
+        season = data.get("season")
+        episodes = data.get("episodes", [])  # List of episode numbers
+
+        if not tmdb_id or not season or not episodes:
+            return jsonify({"error": "缺少参数"}), 400
+
+        # Get TV show details for naming
+        tv_details = tmdb_client.get_tv_details(tmdb_id)
+        show_title = tv_details.get("name", "Unknown")
+
+        session_files = session.get("files", {})
+        imported = []
+
+        for episode_num in episodes:
+            try:
+                # Get episode details
+                episode_details = tmdb_client.get_tv_episode_details(tmdb_id, season, episode_num)
+                mapper = TMDBMapper(tmdb_client)
+                episode_data = mapper.map_episode(episode_details)
+
+                # Create NfoData
+                nfo_data = NfoData(
+                    nfo_type=NfoType.EPISODE,
+                    title=episode_data.title,
+                    originaltitle=episode_data.original_title,
+                    year=episode_data.year,
+                    plot=episode_data.plot,
+                    runtime=episode_data.runtime,
+                    genres=episode_data.genres,
+                    directors=episode_data.directors,
+                    actors=[Actor(**a.__dict__) for a in episode_data.actors],
+                    studio=episode_data.studio,
+                    rating=episode_data.rating,
+                    poster=episode_data.poster,
+                    fanart=episode_data.fanart,
+                    season=episode_data.season,
+                    episode=episode_data.episode,
+                    aired=episode_data.aired,
+                )
+
+                # Create filename
+                episode_title = episode_data.title or f"Episode_{episode_num}"
+                filename = secure_filename(f"{show_title}.S{season}E{episode_num}.{episode_title}.nfo")
+                file_id = str(uuid.uuid4())
+
+                # Save to session
+                session_files[file_id] = {
+                    "name": filename,
+                    "original_data": nfo_data,
+                    "edited_data": None,
+                    "modified_fields": [],
+                    "upload_time": datetime.now().isoformat(),
+                }
+
+                imported.append({"file_id": file_id, "filename": filename, "episode": episode_num})
+
+            except Exception as e:
+                logger.error(f"Failed to import episode {episode_num}: {e}")
+                continue
+
+        session["files"] = session_files
+
+        return jsonify({
+            "success": True,
+            "imported": imported,
+            "total": len(episodes),
+            "count": len(imported)
+        })
+
+    except Exception as e:
+        logger.error(f"Batch import failed: {e}")
         return jsonify({"error": str(e)}), 500
 
 

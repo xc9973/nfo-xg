@@ -117,6 +117,19 @@ class TMDBClient:
         }
         return self._request(f"/tv/{tmdb_id}", params)
 
+    def get_tv_season_details(self, tmdb_id: int, season: int) -> Dict:
+        """获取整季剧集信息
+
+        Args:
+            tmdb_id: TMDB 电视剧 ID
+            season: 季数
+
+        Returns:
+            季详情字典，包含 episodes 列表
+        """
+        params = {"language": "zh-CN,en-US"}
+        return self._request(f"/tv/{tmdb_id}/season/{season}", params)
+
     def get_tv_episode_details(self, tmdb_id: int, season: int, episode: int) -> Dict:
         """获取单集详细信息
 
