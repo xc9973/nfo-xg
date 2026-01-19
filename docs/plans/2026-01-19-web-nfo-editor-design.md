@@ -19,6 +19,25 @@
 | 批量处理 | 支持批量上传，选择后批量设置字段 |
 | 下载方式 | 单独下载 + ZIP 打包 |
 
+### 1.1 适用场景与限制
+
+**适用场景**：
+- 个人使用或可信小团队（2-5 人）
+- 家庭媒体库管理
+- 内网/私有网络部署
+- 临时编辑场景（编辑后立即下载）
+
+**限制**：
+- 非多用户 SaaS 系统（无用户隔离）
+- 单一密码，所有用户共享
+- 数据仅会话临时存储，服务重启后丢失
+- 不适合需要长期保存编辑状态的场景
+
+**安全建议**：
+- 生产环境建议配合 HTTPS 使用
+- 定期更换密码
+- 避免暴露到公网（建议使用内网穿透或 VPN）
+
 ---
 
 ## 2. 系统架构
@@ -63,6 +82,7 @@
 ### 3.1 认证模块
 - 单一密码验证（环境变量配置）
 - Session 管理（登录状态保持）
+- 会话过期自动清理（使用 Flask-Session 的 FileSystemCache）
 
 ### 3.2 文件管理模块
 
@@ -170,10 +190,14 @@ nfo-xg/
 ### 6.3 环境变量配置
 ```bash
 # .env
-NFO_PASSWORD=your_password_here      # 登录密码
-SECRET_KEY=random_secret_key         # Session 加密密钥
-SESSION_TIMEOUT=3600                 # 会话超时（秒）
-MAX_UPLOAD_SIZE=10485760             # 最大上传（10MB）
+NFO_PASSWORD=your_password_here      # 登录密码（留空则无需登录）
+SECRET_KEY=random_secret_key         # Session 加密密钥（必填）
+SESSION_TIMEOUT=3600                 # 会话超时（秒），默认 1 小时
+PERMANENT_SESSION_LIFETIME=3600      # Flask-Session 永久会话生命周期
+MAX_UPLOAD_SIZE=10485760             # 单文件最大上传（10MB）
+MAX_FILES_PER_BATCH=50               # 批量上传最大文件数
+SESSION_FILE_THRESHOLD=500           # 触发清理过期会话的文件数阈值
+SESSION_FILE_DIR=/tmp/flask_session  # Flask-Session 文件存储目录
 ```
 
 ---
@@ -313,9 +337,31 @@ services:
     environment:
       - NFO_PASSWORD=${NFO_PASSWORD}
       - SECRET_KEY=${SECRET_KEY}
+      - SESSION_TIMEOUT=3600
+      - MAX_FILES_PER_BATCH=50
     volumes:
       - ./uploads:/tmp/nfo_uploads
+      - ./flask_session:/tmp/flask_session  # Session 持久化
     restart: unless-stopped
+```
+
+### 9.3 会话管理实现
+```python
+# Flask-Session 配置示例
+from flask_session import Session
+from flask import Flask
+
+app = Flask(__name__)
+app.config.update(
+    SESSION_TYPE='filesystem',           # 使用文件系统存储
+    SESSION_FILE_DIR=os.environ.get('SESSION_FILE_DIR', '/tmp/flask_session'),
+    SESSION_FILE_THRESHOLD=int(os.environ.get('SESSION_FILE_THRESHOLD', 500)),
+    PERMANENT_SESSION_LIFETIME=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600)),
+    SESSION_COOKIE_SECURE=False,         # HTTPS 时设为 True
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
+Session(app)
 ```
 
 ---
@@ -323,8 +369,18 @@ services:
 ## 10. 后续步骤
 
 1. ✅ 设计文档完成
-2. ⏳ 创建实现计划
-3. ⏳ 设置开发工作区
-4. ⏳ 实现后端 API
-5. ⏳ 实现前端页面
-6. ⏳ 测试与部署
+2. ✅ 代码审查反馈已处理（适用场景、会话配置、批量限制）
+3. ⏳ 创建实现计划
+4. ⏳ 设置开发工作区
+5. ⏳ 实现后端 API
+6. ⏳ 实现前端页面
+7. ⏳ 测试与部署
+
+## 11. 更新日志
+
+| 日期 | 变更 |
+|------|------|
+| 2026-01-19 | 初始设计文档 |
+| 2026-01-19 | 添加适用场景与限制说明 |
+| 2026-01-19 | 补充会话管理配置细节 |
+| 2026-01-19 | 添加批量上传文件数限制 |
