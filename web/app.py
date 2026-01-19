@@ -882,7 +882,7 @@ def tmdb_import_final():
             "success": True,
             "file_id": file_id,
             "filename": filename,
-            "redirect": f"/edit?file_id={file_id}"
+            "redirect": f"/edit/{file_id}"
         })
 
     except Exception as e:
