@@ -235,7 +235,7 @@
                 <select id="nfoType" onchange="toggleNfoTypeFields()">
                     <option value="movie">电影 (movie.nfo)</option>
                     <option value="tvshow">剧集 (tvshow.nfo)</option>
-                    <option value="episode">单集 (episode.nfo)</option>
+                    <option value="episodedetails">单集 (episode.nfo)</option>
                 </select>
             </div>
         </div>
@@ -381,7 +381,7 @@
             document.getElementById('fanart').value = data.fanart || '';
 
             // TV Show fields
-            if (data.nfo_type === 'tvshow' || data.nfo_type === 'episode') {
+            if (data.nfo_type === 'tvshow' || data.nfo_type === 'episodedetails') {
                 document.getElementById('tvShowFields').classList.remove('hidden');
                 document.getElementById('season').value = data.season || '';
                 document.getElementById('episode').value = data.episode || '';
@@ -563,7 +563,7 @@
             const nfoType = document.getElementById('nfoType').value;
             const tvShowFields = document.getElementById('tvShowFields');
 
-            if (nfoType === 'tvshow' || nfoType === 'episode') {
+            if (nfoType === 'tvshow' || nfoType === 'episodedetails') {
                 tvShowFields.classList.remove('hidden');
             } else {
                 tvShowFields.classList.add('hidden');
