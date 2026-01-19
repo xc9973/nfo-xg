@@ -7,7 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1317 | 9:51 PM | 🔵 | Preview feature user guide documentation exists | ~400 |
-| #1316 | " | 🔵 | Documentation directory structure documented | ~132 |
-| #543 | 12:48 AM | 🟣 | NFO-XG预览功能完整实现 | ~252 |
+| #1276 | 9:06 PM | 🟣 | 界面交互逻辑优化：选中NFO文件自动显示编辑器，TMDB搜索移至第二页 | ~85 |
 </claude-mem-context>

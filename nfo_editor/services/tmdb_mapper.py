@@ -117,9 +117,7 @@ class TMDBMapper:
             year=self._get_year(tmdb_data.get("first_air_date")),
             plot=tmdb_data.get("overview", ""),
             runtime=self._get_runtime(
-                tmdb_data.get("episode_run_time", [])[0]
-                if tmdb_data.get("episode_run_time")
-                else None
+                next(iter(tmdb_data.get("episode_run_time", [])), None)
             ),
             genres=self._get_genres(tmdb_data.get("genres", [])),
             directors=self._get_directors(credits.get("crew", [])),

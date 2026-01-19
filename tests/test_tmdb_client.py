@@ -195,11 +195,12 @@ class TestTMDBClient:
 
     def test_request_without_api_key(self):
         """没有 API Key 时抛出异常"""
-        client = TMDBClient(api_key=None)
         import os
         original_key = os.environ.get("TMDB_API_KEY")
         try:
+            # 先删除环境变量，再创建客户端
             os.environ.pop("TMDB_API_KEY", None)
+            client = TMDBClient(api_key=None)
             with pytest.raises(ValueError, match="TMDB API Key is missing"):
                 client.search_multi("test")
         finally:
