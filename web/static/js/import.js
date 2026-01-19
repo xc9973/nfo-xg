@@ -86,6 +86,9 @@ async function validateTmdbId() {
                 </div>
             `;
 
+            // 显示下一步按钮
+            $('#step2Next').style.display = 'inline-block';
+
             // 如果是电视剧，加载季列表
             if (state.mediaType === 'tv') {
                 await loadSeasons();
@@ -136,6 +139,30 @@ $('#step2Back').addEventListener('click', () => {
     state.previewData = null;
     $('#tmdbIdInput').value = '';
     $('#validateResult').innerHTML = '';
+    $('#step2Next').style.display = 'none';
+    updateStep();
+});
+
+// 步骤 2 下一步按钮
+$('#step2Next').addEventListener('click', () => {
+    // 电影直接到确认页，电视剧到选季集页
+    state.step = state.mediaType === 'movie' ? 4 : 3;
+
+    // 如果是电影，生成确认摘要
+    if (state.mediaType === 'movie') {
+        const summary = `
+            <div class="preview-card">
+                <img src="${state.previewData.poster}" alt="海报">
+                <div class="preview-info">
+                    <h3>${state.previewData.title}</h3>
+                    <p>年份: ${state.previewData.year}</p>
+                    <p>TMDB ID: ${state.previewData.tmdb_id}</p>
+                </div>
+            </div>
+        `;
+        $('#importSummary').innerHTML = summary;
+    }
+
     updateStep();
 });
 
@@ -196,6 +223,8 @@ $('#step3Next').addEventListener('click', () => {
 $('#step3Back').addEventListener('click', () => {
     state.step = 2;
     updateStep();
+    // 保持下一步按钮可见，因为验证已通过
+    $('#step2Next').style.display = 'inline-block';
 });
 
 // 步骤 4: 确认导入
