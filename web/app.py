@@ -34,6 +34,8 @@ from nfo_editor.utils.xml_parser import XmlParser
 from nfo_editor.utils.exceptions import ParseError, FileError
 from nfo_editor.batch import TaskManager, BatchPreviewRequest, BatchApplyRequest
 from nfo_editor.batch.processor import BatchProcessor
+from tmdb_search.client import TMDBClient
+from tmdb_search.mapper import tmdb_to_nfo
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,7 @@ Session(app)
 # Initialize parsers and processors
 xml_parser = XmlParser()
 batch_processor = BatchProcessor(xml_parser)
+tmdb_client = TMDBClient()
 
 # Ensure session directory exists
 Path(SESSION_FILE_DIR).mkdir(parents=True, exist_ok=True)
@@ -92,9 +95,13 @@ def check_auth() -> bool:
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """Login page."""
+    # If no password is set, redirect to index
+    if not NFO_PASSWORD:
+        return redirect(url_for("index"))
+
     if request.method == "POST":
         password = request.form.get("password", "")
-        if NFO_PASSWORD and secrets.compare_digest(password, NFO_PASSWORD):
+        if secrets.compare_digest(password, NFO_PASSWORD):
             session["authenticated"] = True
             session.permanent = True
             return redirect(url_for("index"))
@@ -119,7 +126,21 @@ def index():
     """Main page."""
     if not check_auth():
         return redirect(url_for("login"))
-    return render_template("files.html")
+    return render_template("files.html", max_files=MAX_FILES_PER_BATCH)
+
+
+@app.route("/edit/<file_id>")
+def edit_file(file_id: str):
+    """Edit page for a single file."""
+    if not check_auth():
+        return redirect(url_for("login"))
+
+    session_files = session.get("files", {})
+    if file_id not in session_files:
+        return redirect(url_for("index"))
+
+    file_data = session_files[file_id]
+    return render_template("edit.html", file_id=file_id, file_name=file_data["name"])
 
 
 # =============================================================================
@@ -481,6 +502,71 @@ def batch_delete():
     session["files"] = session_files
 
     return jsonify({"deleted": deleted, "count": len(deleted)})
+
+
+# =============================================================================
+# TMDB Search API
+# =============================================================================
+
+@app.route("/api/tmdb/search", methods=["GET"])
+def tmdb_search():
+    """Search TMDB for movies and TV shows."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"error": "缺少搜索关键词"}), 400
+
+    try:
+        result = tmdb_client.search_multi(query)
+        results = []
+
+        for item in result.get("results", []):
+            if item.get("media_type") in ("movie", "tv"):
+                results.append({
+                    "id": item.get("id"),
+                    "media_type": item.get("media_type"),
+                    "title": item.get("title") or item.get("name"),
+                    "original_title": item.get("original_title") or item.get("original_name"),
+                    "year": (item.get("release_date") or item.get("first_air_date") or "")[:4],
+                    "overview": item.get("overview"),
+                    "poster_path": item.get("poster_path"),
+                    "vote_average": item.get("vote_average"),
+                })
+
+        return jsonify({"results": results})
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        logger.error(f"TMDB search failed: {e}")
+        return jsonify({"error": "搜索失败"}), 500
+
+
+@app.route("/api/tmdb/import/<media_type>/<int:tmdb_id>", methods=["GET"])
+def tmdb_import(media_type: str, tmdb_id: int):
+    """Import data from TMDB."""
+    if not check_auth():
+        return jsonify({"error": "未授权"}), 401
+
+    try:
+        # Get details from TMDB
+        if media_type == "movie":
+            details = tmdb_client.get_movie_details(tmdb_id)
+        elif media_type == "tv":
+            details = tmdb_client.get_tv_details(tmdb_id)
+        else:
+            return jsonify({"error": "无效的媒体类型"}), 400
+
+        # Convert to NFO format
+        nfo_data = tmdb_to_nfo(details, media_type)
+
+        return jsonify(serialize_nfo_data(nfo_data))
+
+    except Exception as e:
+        logger.error(f"TMDB import failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 # =============================================================================

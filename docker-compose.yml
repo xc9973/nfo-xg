@@ -5,7 +5,7 @@ services:
     container_name: nfo-editor
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "8111:5000"
     environment:
       - SECRET_KEY=${SECRET_KEY:-}
       - NFO_PASSWORD=${NFO_PASSWORD:-}
