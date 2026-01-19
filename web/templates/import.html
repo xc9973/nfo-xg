@@ -23,12 +23,16 @@
             <div class="step-content active" id="step1">
                 <h2>选择媒体类型</h2>
                 <div class="type-buttons">
-                    <button class="type-btn" data-type="movie">
-                        <span class="icon">🎬</span>
+                    <button class="type-btn" data-type="movie" aria-label="选择电影类型">
+                        <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3H4.5Zm1.405 2.235a.75.75 0 0 0-1.06 1.06L6.97 9.44l-2.125 2.124a.75.75 0 0 0 1.06 1.061l2.125-2.125 2.125 2.125a.75.75 0 0 0 1.06-1.06L9.06 9.439l2.125-2.124a.75.75 0 1 0-1.06-1.061L7.999 8.379 5.875 6.254l.03.031Zm8.625 0a.75.75 0 0 0-1.06 1.06l2.125 2.124-2.125 2.124a.75.75 0 0 0 1.06 1.061l2.125-2.125 2.125 2.125a.75.75 0 0 0 1.06-1.06l-2.124-2.124 2.124-2.125a.75.75 0 0 0-1.06-1.061l-2.125 2.125-2.125-2.125ZM4.5 13.5a.75.75 0 0 1 .75.75v2.25h2.25a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Zm10.5 0a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h2.25v-2.25a.75.75 0 0 1 .75-.75Z" />
+                        </svg>
                         <span class="label">电影</span>
                     </button>
-                    <button class="type-btn" data-type="tv">
-                        <span class="icon">📺</span>
+                    <button class="type-btn" data-type="tv" aria-label="选择电视剧类型">
+                        <svg class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.5 6h-15v12h15V6Zm-15-1.5a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5h15a1.5 1.5 0 0 0 1.5-1.5v-12a1.5 1.5 0 0 0-1.5-1.5h-15ZM6.75 9a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-.75.75h-2.25A.75.75 0 0 1 6.75 9Zm6 0a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-.75.75h-2.25A.75.75 0 0 1 12.75 9ZM6.75 13.5a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1-.75-.75v-2.25Zm6 0a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1-.75-.75v-2.25Z" />
+                        </svg>
                         <span class="label">电视剧</span>
                     </button>
                 </div>
@@ -38,8 +42,8 @@
             <div class="step-content" id="step2">
                 <h2>输入 TMDB ID</h2>
                 <div class="input-group">
-                    <input type="number" id="tmdbIdInput" placeholder="例如: 12345" min="1">
-                    <button id="validateBtn">验证</button>
+                    <input type="number" id="tmdbIdInput" placeholder="例如: 12345" min="1" aria-label="TMDB ID">
+                    <button id="validateBtn" aria-label="验证TMDB ID">验证</button>
                 </div>
                 <div id="validateResult"></div>
                 <button id="step2Next" class="btn-primary" style="display:none;">下一步</button>

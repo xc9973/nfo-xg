@@ -37,6 +37,12 @@
             background: rgba(0, 212, 255, 0.05);
         }
 
+        .upload-area:focus-visible {
+            outline: 2px solid #00d4ff;
+            outline-offset: 2px;
+            border-color: #00d4ff;
+        }
+
         .upload-area.dragover {
             border-color: #00d4ff;
             background: rgba(0, 212, 255, 0.1);
@@ -273,9 +279,15 @@
             font-size: 14px;
         }
 
+        .batch-form select:focus-visible,
+        .batch-form input:focus-visible {
+            outline: 2px solid #00d4ff;
+            outline-offset: 2px;
+            border-color: #00d4ff;
+        }
+
         .batch-form select:focus,
         .batch-form input:focus {
-            outline: none;
             border-color: #00d4ff;
         }
 
@@ -313,7 +325,7 @@
         <!-- Upload Section -->
         <div class="upload-section">
             <h2>上传 NFO 文件</h2>
-            <div class="upload-area" id="uploadArea">
+            <div class="upload-area" id="uploadArea" role="button" tabindex="0" aria-label="点击或拖拽上传NFO文件">
                 <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
@@ -350,7 +362,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>批量编辑</h2>
-                <button class="modal-close" onclick="closeBatchEdit()">&times;</button>
+                <button class="modal-close" onclick="closeBatchEdit()" aria-label="关闭对话框">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="batch-form">
@@ -396,6 +408,14 @@
         // Upload area click
         document.getElementById('uploadArea').addEventListener('click', () => {
             document.getElementById('fileInput').click();
+        });
+
+        // Upload area keyboard support (Enter and Space)
+        document.getElementById('uploadArea').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                document.getElementById('fileInput').click();
+            }
         });
 
         // File input change
