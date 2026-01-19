@@ -92,6 +92,14 @@ def check_auth() -> bool:
     return session.get("authenticated", False)
 
 
+@app.route("/import", methods=["GET"])
+def import_page():
+    """TMDB 导入页面."""
+    if not check_auth():
+        return redirect(url_for("login"))
+    return render_template("import.html")
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """Login page."""
