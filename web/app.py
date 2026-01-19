@@ -576,6 +576,14 @@ def tmdb_validate():
         if not isinstance(tmdb_id, int) or tmdb_id <= 0:
             return jsonify({"error": "无效的 TMDB ID"}), 400
 
+        # 范围检查：TMDB ID 一般不会超过 1000 万
+        if tmdb_id > 10000000:
+            return jsonify({"error": "TMDB ID 超出范围"}), 400
+
+        # 验证 media_type
+        if media_type not in ["movie", "tv"]:
+            return jsonify({"error": "无效的媒体类型"}), 400
+
         # 获取详情用于预览
         if media_type == "movie":
             details = tmdb_client.get_movie_details(tmdb_id)
@@ -794,6 +802,25 @@ def tmdb_import_final():
 
         if not tmdb_id or not media_type:
             return jsonify({"error": "缺少参数"}), 400
+
+        # 验证 media_type
+        if media_type not in ["movie", "tv", "episode"]:
+            return jsonify({"error": "无效的媒体类型"}), 400
+
+        # 验证 TMDB ID 范围
+        if not isinstance(tmdb_id, int) or tmdb_id <= 0 or tmdb_id > 10000000:
+            return jsonify({"error": "无效的 TMDB ID"}), 400
+
+        # 对于 episode 类型，验证季数和集数
+        if media_type == "episode":
+            if not season or not episode:
+                return jsonify({"error": "缺少季数或集数"}), 400
+            if not isinstance(season, int) or not isinstance(episode, int):
+                return jsonify({"error": "季数和集数必须是整数"}), 400
+            if season <= 0 or episode <= 0:
+                return jsonify({"error": "季数和集数必须大于 0"}), 400
+            if season > 100 or episode > 200:  # 合理上限
+                return jsonify({"error": "季数或集数超出范围"}), 400
 
         # 获取 NFO 数据
         if media_type == "movie":
